@@ -123,11 +123,11 @@ class EndpointTest(unittest.TestCase):
         self.addCleanup(self.server.shutdown)
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
 
-    def post(self, payload, key=KEY, content_type="application/json"):
+    def post(self, payload, key=KEY, content_type="application/json", query=""):
         headers = {"Content-Type": content_type}
         if key is not None:
             headers["X-HeartWatch-Key"] = key
-        req = urllib.request.Request(self.base + "/api/healthconnect", json.dumps(payload).encode(), headers)
+        req = urllib.request.Request(self.base + "/api/healthconnect" + query, json.dumps(payload).encode(), headers)
         try:
             with urllib.request.urlopen(req) as r:
                 return r.status, json.load(r)
@@ -146,6 +146,14 @@ class EndpointTest(unittest.TestCase):
             d = json.load(r)
         self.assertEqual(d["rhr"][d["days"].index("2026-10-02")], 51)
         self.assertEqual(d["phone"]["last_rhr_day"], "2026-10-02")
+
+    def test_key_in_the_url(self):
+        payload = {"resting_heart_rate": [rhr(date(2026, 10, 2), 51)]}
+        self.assertEqual(self.post(payload, key=None, query="?key=wrong")[0], 401)
+        with self.assertLogs("heartwatch.web", "WARNING") as logs:
+            self.post(payload, key=None, query="?key=wrong")
+        self.assertNotIn("wrong", "".join(logs.output).replace("wrong or missing", ""))
+        self.assertEqual(self.post(payload, key=None, query=f"?key={self.KEY}")[0], 200)
 
     def test_bad_payload(self):
         self.assertEqual(self.post({"resting_heart_rate": [{"time": "not a time", "bpm": 5}]})[0], 400)

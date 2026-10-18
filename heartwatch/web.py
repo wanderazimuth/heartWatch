@@ -29,6 +29,8 @@ SPORTS = ("run", "strength", "other")
 WORKOUT_PATH = re.compile(r"/api/workouts/(\d+)/sport")
 UPLOAD_TYPES = ("application/zip", "application/x-zip-compressed", "text/csv", "application/octet-stream")
 MAX_UPLOAD = 20 * 1024 * 1024
+# The Health Connect key may come in the URL, so keep it out of the logs.
+SECRET_QUERY = re.compile(r"([?&]key=)[^&\s]*")
 SAFE_NAME = re.compile(r"[^A-Za-z0-9 ._()-]")
 
 
@@ -273,9 +275,11 @@ def make_handler(cfg: Config):
 
             if not cfg.healthconnect_key:
                 return refuse("healthconnect_key is not set in config.toml", 503)
-            key = self.headers.get("X-HeartWatch-Key", "").strip()
+            # The header, or ?key= in the URL: HC Webhook leaves custom headers off its manual syncs.
+            key = (self.headers.get("X-HeartWatch-Key")
+                   or (parse_qs(urlparse(self.path).query).get("key") or [""])[0]).strip()
             if not hmac.compare_digest(key.encode(), cfg.healthconnect_key.encode()):
-                return refuse("wrong or missing X-HeartWatch-Key", 401)
+                return refuse("wrong or missing key (X-HeartWatch-Key header or ?key= in the URL)", 401)
             if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
                 return refuse("expected application/json", 415)
             size = int(self.headers.get("Content-Length", 0))
@@ -314,13 +318,13 @@ def make_handler(cfg: Config):
             return self._json({"ok": True, "added": result.added, "failed": result.failed, "seen": result.seen})
 
         def log_message(self, fmt, *args):
-            log.debug("%s %s", self.address_string(), fmt % args)
+            log.debug("%s %s", self.address_string(), SECRET_QUERY.sub(r"***", fmt % args))
 
         def log_request(self, code="-", size="-"):
             # Failed requests are worth seeing (a phone app pointed at the wrong path, say);
             # the request line has no secrets, the key travels in a header.
             level = logging.WARNING if str(code).isdigit() and int(code) >= 400 else logging.DEBUG
-            log.log(level, "%s \"%s\" %s", self.address_string(), self.requestline, code)
+            log.log(level, "%s \"%s\" %s", self.address_string(), SECRET_QUERY.sub(r"***", self.requestline), code)
 
     return Handler
 
