@@ -313,6 +313,12 @@ def make_handler(cfg: Config):
         def log_message(self, fmt, *args):
             log.debug("%s %s", self.address_string(), fmt % args)
 
+        def log_request(self, code="-", size="-"):
+            # Failed requests are worth seeing (a phone app pointed at the wrong path, say);
+            # the request line has no secrets, the key travels in a header.
+            level = logging.WARNING if str(code).isdigit() and int(code) >= 400 else logging.DEBUG
+            log.log(level, "%s \"%s\" %s", self.address_string(), self.requestline, code)
+
     return Handler
 
 
