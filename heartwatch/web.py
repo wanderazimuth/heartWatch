@@ -265,16 +265,22 @@ def make_handler(cfg: Config):
         def _healthconnect(self):
             # The phone app proves itself with the shared key, so nothing else on the
             # network can write readings. JSON only, like every other POST.
+            def refuse(error, status):
+                # Logged so a phone that stopped syncing can be diagnosed; header names only, never the key.
+                log.warning("health connect refused (%d): %s; content-type %r, length %r, headers %s", status, error,
+                            self.headers.get("Content-Type"), self.headers.get("Content-Length"), sorted(self.headers.keys()))
+                return self._json({"error": error}, status)
+
             if not cfg.healthconnect_key:
-                return self._json({"error": "healthconnect_key is not set in config.toml"}, 503)
-            key = self.headers.get("X-HeartWatch-Key", "")
+                return refuse("healthconnect_key is not set in config.toml", 503)
+            key = self.headers.get("X-HeartWatch-Key", "").strip()
             if not hmac.compare_digest(key.encode(), cfg.healthconnect_key.encode()):
-                return self._json({"error": "wrong or missing X-HeartWatch-Key"}, 401)
-            if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
-                return self._json({"error": "expected application/json"}, 415)
+                return refuse("wrong or missing X-HeartWatch-Key", 401)
+            if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
+                return refuse("expected application/json", 415)
             size = int(self.headers.get("Content-Length", 0))
             if not 0 < size <= MAX_UPLOAD:
-                return self._json({"error": "body is empty or too big"}, 413)
+                return refuse("body is empty or too big", 413)
             body = self.rfile.read(size)
             conn = db.connect(cfg.db_path)
             try:
