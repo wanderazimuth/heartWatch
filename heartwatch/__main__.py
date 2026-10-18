@@ -174,7 +174,9 @@ def cmd_web(cfg: config_mod.Config, args) -> None:
 
 
 def cmd_rebuild(cfg: config_mod.Config, args) -> None:
-    print(f"rebuilt {store.rebuild_all(db.connect(cfg.db_path), cfg)} workouts")
+    conn = db.connect(cfg.db_path)
+    print(f"rebuilt {store.rebuild_all(conn, cfg)} workouts")
+    print(f"reloaded {healthconnect.reload(conn, cfg)} Health Connect payloads")
 
 
 def cmd_workouts(cfg: config_mod.Config, args) -> None:
@@ -212,7 +214,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("poll", help="import new workouts from Dropbox")
     p = sub.add_parser("gaps", help="list stretches with no workouts")
     p.add_argument("--weeks", type=int, default=2)
-    sub.add_parser("rebuild", help="recompute every workout from the archived files")
+    sub.add_parser("rebuild", help="recompute workouts and phone data from the archived files")
     sub.add_parser("backup", help="copy the archive and a database snapshot to backup_target")
     p = sub.add_parser("web", help="serve the dashboard")
     p.add_argument("--host", default="0.0.0.0")

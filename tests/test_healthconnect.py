@@ -1,3 +1,4 @@
+import gzip
 import json
 import tempfile
 import threading
@@ -67,6 +68,25 @@ class ReceiveTest(unittest.TestCase):
         self.assertTrue(got.test)
         self.assertEqual(healthconnect.resting_hr(self.conn), {})
         self.assertFalse(Path(self.cfg.archive_dir, "healthconnect").exists())
+
+    def test_ring_style_nights_and_bedtime_readings(self):
+        # RingConn: the night as one session plus its stages as unlabelled sessions, no ids,
+        # and the resting heart rate stamped at bedtime the evening before.
+        end = datetime(2024, 3, 5, 6, 30, tzinfo=TZ)
+        part = lambda secs, back: {"session_end_time": (end - timedelta(seconds=back)).isoformat(), "duration_seconds": secs,
+                                   "stages": [], "metadata": {"data_origin": RING}}
+        evening = {"bpm": 52, "time": datetime(2024, 3, 4, 23, 40, tzinfo=TZ).isoformat(), "metadata": {"data_origin": RING}}
+        payload = {"sleep": [part(7 * 3600, 0), part(1800, 0), part(3600, 1800), part(300, 7000)],
+                   "resting_heart_rate": [evening], "heart_rate": [{"bpm": 140, "time": end.isoformat()}]}
+        self.send(payload)
+        self.send(payload)
+        self.assertEqual(healthconnect.sleep(self.conn), {date(2024, 3, 5): 7.0})
+        self.assertEqual(healthconnect.resting_hr(self.conn), {date(2024, 3, 5): 52})
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM health_records").fetchone()[0], 5)
+        archived = [json.loads(gzip.decompress(p.read_bytes())) for p in Path(self.cfg.archive_dir, "healthconnect").rglob("*.json.gz")]
+        self.assertTrue(archived and all("heart_rate" not in a for a in archived))
+        self.assertEqual(healthconnect.reload(self.conn, self.cfg), 2)
+        self.assertEqual(healthconnect.resting_hr(self.conn), {date(2024, 3, 5): 52})
 
     def test_nothing_useful_is_not_archived(self):
         self.assertEqual(self.send({"timestamp": "x", "steps": [{"count": 5}]}).resting_hr, 0)
