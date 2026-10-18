@@ -48,6 +48,8 @@ def cmd_summary(cfg: config_mod.Config, args) -> None:
         note = f"resting HR {h.adjust:+.0f}: 7-day {h.week:.0f} bpm, normal {h.base - h.sd:.0f}-{h.base + h.sd:.0f}"
     elif h.baseline_days < load.MIN_BASELINE:
         note = f"no resting-HR adjustment until {load.MIN_BASELINE} days of ring data; {h.baseline_days} so far"
+    elif h.week is None:
+        note = f"no resting-HR adjustment: under {load.MIN_WEEK} nights of ring data this week"
     else:
         note = "resting HR normal, no adjustment"
     print(f"  Training capacity  {d.capacity:+5.0f}   ({note})")
