@@ -20,7 +20,7 @@ TUNABLE = {
     "threshold_days": (7, 180),
     "anaerobic_days": (3, 120),
     "fatigue_days": (2, 28),
-    "hrv_adjust_max": (0, 20),
+    "readiness_adjust_max": (0, 20),
 }
 
 
@@ -46,7 +46,8 @@ def check(cfg: Config) -> Config:
 
 def saved(conn: sqlite3.Connection) -> dict:
     row = conn.execute("SELECT value FROM meta WHERE key = 'settings'").fetchone()
-    return json.loads(row["value"]) if row else {}
+    # A setting that was renamed or dropped since it was saved is ignored.
+    return {k: v for k, v in json.loads(row["value"]).items() if k in TUNABLE} if row else {}
 
 
 def effective(cfg: Config, conn: sqlite3.Connection, preview: dict | None = None) -> Config:

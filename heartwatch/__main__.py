@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import config as config_mod
-from . import backup, db, dropbox, load, settings, store, takeout, web
+from . import backup, db, dropbox, healthconnect, load, settings, store, takeout, web
 from .store import MIN_ACTIVE_MINUTES, is_workout
 
 log = logging.getLogger("heartwatch")
@@ -38,19 +38,19 @@ def cmd_summary(cfg: config_mod.Config, args) -> None:
         print("No workouts imported yet.")
         return
     today = date.today()
-    hrv = load.hrv_series(store.hrv_readings(conn), cfg, ws[0].start.date(), today)
-    days = load.series(store.daily_loads(ws, cfg), cfg, ws[0].start.date(), today, {h.day: h.adjust for h in hrv})
-    d, h = days[-1], hrv[-1]
+    rhr = load.readiness(healthconnect.resting_hr(conn), cfg, ws[0].start.date(), today)
+    days = load.series(store.daily_loads(ws, cfg), cfg, ws[0].start.date(), today, {b.day: b.adjust for b in rhr})
+    d, h = days[-1], rhr[-1]
     lt = d.long_term
     print(f"Today, {today:%a %b %d %Y}: {d.state}")
     print(f"  Fitness score      {d.fitness:5.0f}   ({fmt_change((d.fitness - days[-29].fitness) / days[-29].fitness if len(days) > 28 and days[-29].fitness else 0)})")
     if h.adjust:
-        hrv_note = f"HRV {h.adjust:+.0f}: 7-day {h.week:.0f} ms, normal {h.base - h.sd:.0f}-{h.base + h.sd:.0f}"
-    elif h.baseline_days < load.HRV_MIN_BASELINE:
-        hrv_note = f"no HRV adjustment until {load.HRV_MIN_BASELINE} days of ring data; {h.baseline_days} so far"
+        note = f"resting HR {h.adjust:+.0f}: 7-day {h.week:.0f} bpm, normal {h.base - h.sd:.0f}-{h.base + h.sd:.0f}"
+    elif h.baseline_days < load.MIN_BASELINE:
+        note = f"no resting-HR adjustment until {load.MIN_BASELINE} days of ring data; {h.baseline_days} so far"
     else:
-        hrv_note = "HRV normal, no adjustment"
-    print(f"  Training capacity  {d.capacity:+5.0f}   ({hrv_note})")
+        note = "resting HR normal, no adjustment"
+    print(f"  Training capacity  {d.capacity:+5.0f}   ({note})")
     print(f"  Long-term load     {d.ltl:5.0f}   = aerobic {lt.aerobic:.0f} + threshold {lt.threshold:.0f}"
           f" + anaerobic {lt.anaerobic:.0f}, {fmt_change(d.change)}")
     print(f"  Short-term load    {d.short_term:5.0f}")

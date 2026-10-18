@@ -8,7 +8,8 @@ Training Trends, computed from heart rate alone and served from a Raspberry Pi o
 ```
 Wahoo app ──.FIT──▶ Dropbox ──(Pi polls daily, or Update button)──▶ importer ──▶ SQLite ──▶ dashboard :8081
 Wahoo export + Google Takeout ──(one-time backfill)─────────▲
-RingConn app export (zip) ─▶ Imports page upload or `heartwatch ringconn` ─▶ SQLite
+RingConn ─▶ Health Connect ─▶ HC Webhook app ─▶ POST /api/healthconnect (daily resting HR, sleep)
+RingConn app export (zip, by hand) ─▶ Imports page upload ─▶ HRV chart
 ```
 
 Layout:
@@ -97,12 +98,12 @@ database snapshot (rsync over ssh, never deleting). Deployed with `deploy/push.s
 Archive paths are stored relative to `archive_dir`, so the archive and database
 can move between machines as they are.
 
-**5. Ring HRV (started)**
-RingConn's own data export has daily HRV, so no Android app for now: import the export's Vital Signs
-CSV (dashboard upload or `heartwatch ringconn`), draw the HRV chart, and adjust training capacity
-once there is a baseline. The normal range leaves out the current week, so a bad week can't lower it.
-Still manual: each export has to be imported by hand. Later: a Dropbox folder for exports, or the
-Health Connect app if overnight HRV turns out to be worth it.
+**5. Ring data (done)**
+RingConn doesn't share HRV with Health Connect (its own docs say so), so readiness comes from the
+ring's daily resting heart rate instead, sent from Health Connect by the HC Webhook app on the phone
+to `/api/healthconnect` (shared key in a header). Resting heart rate above your normal range lowers
+training capacity, below raises it. HRV from manual RingConn exports is charted but not scored.
+The normal range leaves out the current week, so a bad week can't lower it.
 
 ## Decisions
 

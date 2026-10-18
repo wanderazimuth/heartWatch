@@ -73,25 +73,45 @@ HeartWatch reads them from there once a day, and on demand with `heartwatch poll
 5. `heartwatch dropbox-ls /Apps` shows where the Wahoo files are; set `dropbox_folder` if it isn't
    `/Apps/WahooFitness`. Then `heartwatch poll`.
 
-## RingConn HRV
+## Ring data from the phone (Health Connect)
 
-Export your data in the RingConn app (any date range) and import the zip, either with
-**Import an export…** on the Imports page or:
+The RingConn app writes a daily resting heart rate and sleep sessions into Android Health Connect.
+[HC Webhook](https://github.com/mcnaveen/health-connect-webhook), an open-source Android app, sends
+them to HeartWatch on a schedule, straight over your home Wi-Fi.
+
+1. Set `healthconnect_key` in the config to a long random string (for example
+   `python3 -c "import secrets; print(secrets.token_urlsafe(18))"`) and restart `heartwatch-web`.
+2. Install HC Webhook on the phone. In Health Connect grant it only **Resting heart rate** and
+   **Sleep**; it asks for every kind of health data, and needs none of the rest.
+3. Add a webhook: URL `http://<pi address>:8081/api/healthconnect`, format JSON, custom header
+   `X-HeartWatch-Key` with the key from step 1. Data types: resting heart rate and sleep.
+4. Sync mode: **Scheduled**, at times you're usually home (say 08:00 and 21:00). Exclude the app
+   from battery optimisation so Android doesn't stop it.
+5. Once, run a manual sync with a time range of the last 60 days, so HeartWatch has a baseline
+   from the start. **Sync Now** and the app's Webhook Log show whether the Pi accepted it.
+
+HeartWatch keeps the ring's own records if other apps write the same type, archives every payload
+it receives, and turns the header's "Ring data" date red when nothing has arrived for 3 days.
+
+**Readiness.** The 7-day average resting heart rate is compared with your normal range: the
+average of the 30 days before the current week, plus or minus one standard deviation. Once 21 of
+those 30 days have a reading, training capacity moves by up to `readiness_adjust_max` points
+(default 12, 0 turns it off): a week two standard deviations above normal takes the full amount
+away, two below adds it.
+
+## RingConn exports (HRV, by hand)
+
+RingConn doesn't share HRV with Health Connect, so HRV only comes from the app's manual data export.
+Import the zip with **Import an export…** on the Imports page or:
 
 ```
 .venv\Scripts\python -m heartwatch --config config.toml ringconn "Data Export-*.zip"
 ```
 
-HeartWatch reads the Vital Signs file: one row per day with heart rate, SpO2 and HRV. Exports can
-overlap; a later export of the same day replaces it, and every export is archived.
-
-The HRV chart shows each day, the 7-day average and your normal range: the average of the 30 days
-before the current week, plus or minus one standard deviation. Once 21 of those 30 days have ring
-data, training capacity moves by up to `hrv_adjust_max` points (default 12, 0 turns it off): a 7-day
-average two standard deviations above normal adds the full amount, two below takes it away.
-
-RingConn's export gives a whole-day HRV average, not an overnight one, so workouts and stressful days
-pull it down too.
+HeartWatch reads the Vital Signs file (daily heart rate, SpO2 and HRV) and charts HRV the same way
+as resting heart rate, but it doesn't change training capacity: the export's HRV is a whole-day
+average, which workouts and stressful days pull down too. Exports can overlap; a later export of
+the same day replaces it.
 
 ## On the Pi
 

@@ -41,6 +41,19 @@ CREATE TABLE IF NOT EXISTS vitals (
     hrv REAL, hrv_min REAL, hrv_max REAL,  -- ms; the ring's daily average, min and max
     imported INTEGER NOT NULL
 );
+
+-- Records the phone sends from Health Connect: resting heart rate and sleep.
+CREATE TABLE IF NOT EXISTS health_records (
+    id TEXT PRIMARY KEY,             -- Health Connect's record id; a resent record replaces the old one
+    type TEXT NOT NULL,              -- resting_hr / sleep
+    start INTEGER NOT NULL,          -- unix seconds
+    end INTEGER NOT NULL,
+    value REAL NOT NULL,             -- bpm, or seconds asleep
+    origin TEXT NOT NULL,            -- the app that wrote it
+    detail TEXT,                     -- sleep stages, as JSON
+    received INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS health_records_type ON health_records (type, start);
 """
 
 

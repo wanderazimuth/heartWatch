@@ -45,9 +45,12 @@ class Config:
     anaerobic_days: float = 18
     fatigue_days: float = 7
 
-    # Training capacity moves by up to this much when your 7-day HRV is above
-    # or below your normal range (30-day average +- one standard deviation). 0: off.
-    hrv_adjust_max: float = 12
+    # Training capacity moves by up to this much when your 7-day resting heart
+    # rate (from the ring) is below or above your normal range. 0: off.
+    readiness_adjust_max: float = 12
+    # Shared secret the phone's Health Connect app sends in the X-HeartWatch-Key
+    # header. Empty: /api/healthconnect is off.
+    healthconnect_key: str = ""
 
     # Hard work tires you more than its load suggests.
     threshold_fatigue: float = 1.4

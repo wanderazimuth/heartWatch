@@ -7,6 +7,7 @@ settings.
 """
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import re
@@ -19,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import db, dropbox, load, settings, store
+from . import db, dropbox, healthconnect, load, settings, store
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -55,8 +56,9 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
             sessions[sport][d] = sessions[sport].get(d, 0) + 1
     total = store.daily_loads(ws, cfg)
     start, end = ws[0].start.date(), max(today, ws[-1].start.date())
-    hrv = load.hrv_series(store.hrv_readings(conn), cfg, start, end)
-    days = load.series(total, cfg, start, end, {h.day: h.adjust for h in hrv})
+    rhr = load.readiness(healthconnect.resting_hr(conn), cfg, start, end)
+    hrv = load.baseline_series(store.hrv_readings(conn), start, end)
+    days = load.series(total, cfg, start, end, {b.day: b.adjust for b in rhr})
     r = lambda x: round(x, 2)
     rn = lambda x: None if x is None else round(x, 1)
     out["days"] = [d.day.isoformat() for d in days]
@@ -74,22 +76,40 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         "load": {s: {k: [r(getattr(per_sport[s].get(d.day, load.Load()), k)) for d in days]
                      for k in ("aerobic", "threshold", "anaerobic")} for s in SPORTS},
         "sessions": {s: [sessions[s].get(d.day, 0) for d in days] for s in SPORTS},
-        # Ring HRV, null where there is none; the normal range is base +- sd,
-        # drawn once a week of baseline days makes it more than noise.
-        "hrv": [rn(h.hrv) for h in hrv],
-        "hrv_week": [rn(h.week) for h in hrv],
-        "hrv_lo": [rn(h.base - h.sd) if h.sd is not None and h.baseline_days >= 7 else None for h in hrv],
-        "hrv_hi": [rn(h.base + h.sd) if h.sd is not None and h.baseline_days >= 7 else None for h in hrv],
-        "hrv_adjust": [r(h.adjust) for h in hrv],
-        "hrv_baseline_days": hrv[-1].baseline_days,
-        "hrv_min_baseline": load.HRV_MIN_BASELINE,
+        **baseline_json("rhr", rhr),
+        **baseline_json("hrv", hrv),
+        "readiness_adjust": [r(b.adjust) for b in rhr],
+        "min_baseline": load.MIN_BASELINE,
     })
     last = max((w for w in ws if store.is_workout(w, cfg)), key=lambda w: w.start, default=None)
     out["last_workout"] = last.start.isoformat(timespec="minutes") if last else None
     peak = max(ws, key=lambda w: w.peak_hr)
     out["peak_hr"] = {"bpm": peak.peak_hr, "date": peak.start.date().isoformat()}
     out["ring"] = ring_json(conn, today)
+    out["phone"] = phone_json(conn, cfg)
     return out
+
+
+def baseline_json(key: str, series: list[load.Baseline]) -> dict:
+    """A ring reading as columns, null where there is none. The normal range (base +- sd)
+    is left out until a week of baseline days makes it more than noise."""
+    rn = lambda x: None if x is None else round(x, 1)
+    band = [b.sd is not None and b.baseline_days >= 7 for b in series]
+    return {
+        key: [rn(b.value) for b in series],
+        f"{key}_week": [rn(b.week) for b in series],
+        f"{key}_lo": [rn(b.base - b.sd) if ok else None for b, ok in zip(series, band)],
+        f"{key}_hi": [rn(b.base + b.sd) if ok else None for b, ok in zip(series, band)],
+        f"{key}_baseline_days": series[-1].baseline_days,
+    }
+
+
+def phone_json(conn, cfg: Config) -> dict:
+    rhr, sleep = healthconnect.resting_hr(conn), healthconnect.sleep(conn)
+    return {"last_received": healthconnect.last_received(conn),
+            "last_rhr_day": max(rhr).isoformat() if rhr else None,
+            "last_sleep": {"day": max(sleep).isoformat(), "hours": round(sleep[max(sleep)], 2)} if sleep else None,
+            "configured": bool(cfg.healthconnect_key)}
 
 
 def ring_json(conn, today: date) -> dict | None:
@@ -184,6 +204,8 @@ def make_handler(cfg: Config):
             path = urlparse(self.path).path
             if path == "/api/ringconn":
                 return self._ringconn()
+            if path == "/api/healthconnect":
+                return self._healthconnect()
             # Requiring JSON forces a CORS preflight for cross-site requests, which we
             # never approve, so other websites can't change anything via your browser.
             if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
@@ -239,6 +261,31 @@ def make_handler(cfg: Config):
             finally:
                 conn.close()
             return self._json({"ok": True, "days": len(days), "first": days[0].day.isoformat(), "last": days[-1].day.isoformat()})
+
+        def _healthconnect(self):
+            # The phone app proves itself with the shared key, so nothing else on the
+            # network can write readings. JSON only, like every other POST.
+            if not cfg.healthconnect_key:
+                return self._json({"error": "healthconnect_key is not set in config.toml"}, 503)
+            key = self.headers.get("X-HeartWatch-Key", "")
+            if not hmac.compare_digest(key.encode(), cfg.healthconnect_key.encode()):
+                return self._json({"error": "wrong or missing X-HeartWatch-Key"}, 401)
+            if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
+                return self._json({"error": "expected application/json"}, 415)
+            size = int(self.headers.get("Content-Length", 0))
+            if not 0 < size <= MAX_UPLOAD:
+                return self._json({"error": "body is empty or too big"}, 413)
+            body = self.rfile.read(size)
+            conn = db.connect(cfg.db_path)
+            try:
+                got = healthconnect.receive(conn, cfg, body)
+            except (ValueError, KeyError, TypeError) as e:
+                log.warning("bad Health Connect payload: %s", e)
+                return self._json({"error": f"couldn't read the payload: {e}"}, 400)
+            finally:
+                conn.close()
+            log.info("health connect: %d resting HR, %d sleep, %d deleted", got.resting_hr, got.sleep, got.deleted)
+            return self._json({"ok": True, "resting_hr": got.resting_hr, "sleep": got.sleep, "deleted": got.deleted})
 
         def _poll(self):
             if not cfg.dropbox_app_key:

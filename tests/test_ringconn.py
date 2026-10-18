@@ -2,10 +2,10 @@ import io
 import tempfile
 import unittest
 import zipfile
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
-from heartwatch import db, load, ringconn, store
+from heartwatch import db, ringconn, store
 from heartwatch.config import Config
 
 HEADER = ("Date,Avg. Heart Rate(bpm),Min. Heart Rate(bpm),Max. Heart Rate(bpm),Avg. Spo2(%),Min. Spo2(%),"
@@ -55,39 +55,6 @@ class ImportTest(unittest.TestCase):
         store.import_ringconn(self.conn, self.cfg, "b.zip", export_zip(HEADER + "2024-03-06,70,50,130,95%,90%,98%,29,12,70\n"))
         self.assertEqual(store.hrv_readings(self.conn), {date(2024, 3, 4): 31, date(2024, 3, 6): 29})
         self.assertEqual(sorted(p.name for p in (Path(self.cfg.archive_dir) / "ringconn").iterdir()), ["a.zip", "b.zip"])
-
-
-class HrvTest(unittest.TestCase):
-    start = date(2024, 1, 1)
-
-    def days(self, values):
-        return {self.start + timedelta(days=i): v for i, v in enumerate(values)}
-
-    def test_no_adjustment_while_learning(self):
-        # 27 days of data: the 7-day week plus 20 days before it, one short of a baseline.
-        hrv = load.hrv_series(self.days([30, 34] * 14), Config(), self.start, self.start + timedelta(days=26))
-        self.assertEqual(hrv[-1].baseline_days, 20)
-        self.assertEqual(hrv[-1].adjust, 0)
-        self.assertIsNotNone(hrv[-1].week)
-
-    def test_low_week_takes_away_and_is_capped(self):
-        values = [30, 34] * 12 + [20] * 7
-        end = self.start + timedelta(days=len(values) - 1)
-        h = load.hrv_series(self.days(values), Config(), self.start, end)[-1]
-        self.assertLess(h.week, h.base - h.sd)
-        self.assertEqual(h.adjust, -12)
-        self.assertEqual(load.hrv_series(self.days(values), Config(hrv_adjust_max=0), self.start, end)[-1].adjust, 0)
-
-    def test_normal_week_is_about_zero(self):
-        values = [30, 34] * 20
-        h = load.hrv_series(self.days(values), Config(), self.start, self.start + timedelta(days=39))[-1]
-        self.assertLess(abs(h.adjust), 2)
-
-    def test_missing_days_mean_no_weekly_average(self):
-        values = {self.start + timedelta(days=i): 30.0 for i in range(32)}
-        h = load.hrv_series(values, Config(), self.start, self.start + timedelta(days=36))[-1]
-        self.assertIsNone(h.week)
-        self.assertEqual(h.adjust, 0)
 
 
 if __name__ == "__main__":

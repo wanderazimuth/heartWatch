@@ -128,7 +128,7 @@ class WebTest(unittest.TestCase):
         d = self.get("/api/series")
         self.assertEqual(d["hrv"][d["days"].index("2026-10-01")], 31)
         self.assertEqual(d["ring"]["days"], 2)
-        self.assertEqual(d["hrv_adjust"][-1], 0)  # two days are not a baseline
+        self.assertEqual(d["readiness_adjust"][-1], 0)  # HRV only charts; it never adjusts
 
     def test_poll_without_dropbox(self):
         status, body = self.post("/api/poll", {})
