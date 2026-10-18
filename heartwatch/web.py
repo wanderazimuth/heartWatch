@@ -31,6 +31,10 @@ UPLOAD_TYPES = ("application/zip", "application/x-zip-compressed", "text/csv", "
 MAX_UPLOAD = 20 * 1024 * 1024
 # The Health Connect key may come in the URL, so keep it out of the logs.
 SECRET_QUERY = re.compile(r"([?&]key=)[^&\s]*")
+
+
+def redact(text: str) -> str:
+    return SECRET_QUERY.sub(lambda m: m[1] + "***", text)
 SAFE_NAME = re.compile(r"[^A-Za-z0-9 ._()-]")
 
 
@@ -318,13 +322,13 @@ def make_handler(cfg: Config):
             return self._json({"ok": True, "added": result.added, "failed": result.failed, "seen": result.seen})
 
         def log_message(self, fmt, *args):
-            log.debug("%s %s", self.address_string(), SECRET_QUERY.sub(r"***", fmt % args))
+            log.debug("%s %s", self.address_string(), redact(fmt % args))
 
         def log_request(self, code="-", size="-"):
             # Failed requests are worth seeing (a phone app pointed at the wrong path, say);
-            # the request line has no secrets, the key travels in a header.
+            # a ?key= in the request line is masked.
             level = logging.WARNING if str(code).isdigit() and int(code) >= 400 else logging.DEBUG
-            log.log(level, "%s \"%s\" %s", self.address_string(), SECRET_QUERY.sub(r"***", self.requestline), code)
+            log.log(level, "%s \"%s\" %s", self.address_string(), redact(self.requestline), code)
 
     return Handler
 
