@@ -1,0 +1,30 @@
+[Unit]
+Description=HeartWatch dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heartwatch
+Group=heartwatch
+WorkingDirectory=/opt/heartwatch
+ExecStart=/opt/heartwatch/.venv/bin/python -m heartwatch --config /etc/heartwatch/config.toml web --port 8081
+Restart=on-failure
+RestartSec=10
+
+# The Update button imports from Dropbox, so it writes the database and archive -- nothing else.
+CapabilityBoundingSet=
+NoNewPrivileges=true
+StateDirectory=heartwatch
+StateDirectoryMode=0750
+Environment=HOME=/var/lib/heartwatch
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# Recomputing the whole history takes a moment; leave the Pi to Pi-hole and NetWatch.
+MemoryMax=300M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

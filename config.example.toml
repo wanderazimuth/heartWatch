@@ -1,0 +1,29 @@
+# Copy to /etc/heartwatch/config.toml (or ./config.toml for local runs) and adjust.
+
+db_path = "/var/lib/heartwatch/heartwatch.db"
+archive_dir = "/var/lib/heartwatch/archive"   # every imported file is copied here; back it up
+
+# Dropbox: a read-only app you create (see README). Run `heartwatch dropbox-login` once.
+dropbox_app_key = ""
+dropbox_folder = "/Apps/WahooFitness"           # where the Wahoo app shares its .fit files
+dropbox_token_file = "/var/lib/heartwatch/dropbox_token"
+heartbeat_url = ""   # pinged when a poll finds a new workout; set the check's period to 7 days
+
+# Nightly copy to the NAS (rsync over ssh with the key install.sh made). Empty: no copy.
+backup_target = ""   # e.g. "heartwatch@nas.local:/volume1/Backup/heartwatch"
+backup_ssh_key = "/var/lib/heartwatch/.ssh/id_ed25519"
+
+# Heart-rate reserve zones: zone 2 = 60-70% of the way from resting to max.
+resting_hr = 60
+max_hr = 180   # use the highest you've recorded; raise it if a workout goes higher
+
+# Averaging windows, in days. Longer = smoother and slower to react.
+fitness_days = 21      # fitness score: long-term load averaged again
+aerobic_days = 60      # long-term load, zones 1-2
+threshold_days = 35    # long-term load, zones 3-4
+anaerobic_days = 18    # long-term load, zone 5
+fatigue_days = 7       # short-term load
+
+# Short-term load counts harder work extra.
+threshold_fatigue = 1.4
+anaerobic_fatigue = 2.0

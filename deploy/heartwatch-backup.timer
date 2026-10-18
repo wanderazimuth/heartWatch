@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly HeartWatch copy to the NAS
+
+[Timer]
+OnCalendar=*-*-* 02:30
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

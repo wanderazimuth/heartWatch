@@ -1,0 +1,27 @@
+[Unit]
+Description=HeartWatch import of new workouts from Dropbox
+After=network-online.target
+Wants=network-online.target
+# Not connected to Dropbox yet: skip quietly instead of failing.
+ConditionPathExists=/var/lib/heartwatch/dropbox_token
+
+[Service]
+Type=oneshot
+User=heartwatch
+Group=heartwatch
+WorkingDirectory=/opt/heartwatch
+ExecStart=/opt/heartwatch/.venv/bin/python -m heartwatch --config /etc/heartwatch/config.toml poll
+TimeoutStartSec=30min
+
+CapabilityBoundingSet=
+NoNewPrivileges=true
+StateDirectory=heartwatch
+StateDirectoryMode=0750
+Environment=HOME=/var/lib/heartwatch
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+Nice=10
+MemoryMax=300M
+CPUQuota=50%

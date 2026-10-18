@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HeartWatch</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232F6FDE' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l2-5 4 10 2-5h6'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f5f7; --panel: #ffffff; --text: #16181d; --muted: #5a606b; --soft: #8a909b; --border: #e6e8ec;
+    --grid: #eceef1; --pill: #e6e8ec; --pill-on: #ffffff;
+    --aer: #2f6fde; --thr: #f0a04b; --ana: #5b2a86;
+    --fresh: #2f6fde; --neutral: #a3a9b3; --tired: #e8833a; --risk: #c0262d;
+    --ltl: #6e59c7; --stl: #b4561a; --link: #2b5fc4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1a1e26; --text: #e8eaf0; --muted: #a0a7b5; --soft: #7d8596; --border: #2a303b;
+      --grid: #252a34; --pill: #252a34; --pill-on: #3a4150;
+      --aer: #5b8ff0; --thr: #f2ad62; --ana: #a77fd6;
+      --fresh: #5b8ff0; --neutral: #6b7382; --tired: #f0965a; --risk: #ff6b5e;
+      --ltl: #9b8af0; --stl: #e08a4a; --link: #8fb0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 18px; }
+  a { color: var(--link); }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 21px; letter-spacing: -.01em; }
+  nav { display: flex; flex-wrap: wrap; gap: 4px; }
+  nav a { padding: 9px 13px; border-radius: 8px; font-weight: 600; text-decoration: none; color: var(--muted); }
+  nav a.on { background: var(--text); color: var(--bg); }
+  .status { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  button { font: 600 14px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; min-height: 40px; padding: 0 14px;
+           border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  button:disabled { opacity: .55; cursor: default; }
+  .titlebar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+  h2 { margin: 0; font-size: 19px; }
+  h2 small { font-weight: 500; font-size: 14px; color: var(--muted); }
+  .sub { color: var(--muted); }
+  .pills { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--pill); padding: 4px; border-radius: 10px; }
+  .pills button { min-width: 48px; border: 0; background: transparent; color: var(--muted); }
+  .pills button[aria-pressed=true] { background: var(--pill-on); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .card, .panel { background: var(--panel); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .panel { gap: 12px; }
+  .k { font-size: 12.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .v { font-weight: 800; font-size: 38px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .v small { font-size: 17px; font-weight: 600; color: var(--muted); }
+  .t { font-size: 14px; color: var(--muted); line-height: 1.45; }
+  .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 14px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 18px; height: 3px; border-radius: 2px; display: inline-block; }
+  .box { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .chart { display: flex; gap: 8px; }
+  .axis { position: relative; width: 34px; font-size: 12px; color: var(--muted); text-align: right; flex: none; }
+  .axis span { position: absolute; right: 0; transform: translateY(-50%); }
+  .plot { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .plot svg { width: 100%; height: 100%; display: block; }
+  .strip { display: flex; height: 12px; margin-top: 6px; border-radius: 3px; overflow: hidden; }
+  .tcaxis { width: 10px; margin-top: 10px; border-radius: 5px; flex: none;
+            background: linear-gradient(180deg, var(--fresh), var(--neutral), var(--tired)); }
+  .xlabels { display: flex; justify-content: space-between; padding: 0 18px 0 42px; font-size: 12px; color: var(--muted); }
+  .xlabels.nr { padding-right: 0; }
+  .empty { padding: 30px 10px; text-align: center; color: var(--muted); }
+  .note { font-size: 13px; color: var(--muted); line-height: 1.6; max-width: 820px; }
+  .notice { background: color-mix(in srgb, var(--thr) 18%, var(--panel)); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+           padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.num, th.num { text-align: right; }
+  tr.leftover td { color: var(--soft); }
+  select { font: inherit; min-height: 36px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+  .zbar { display: inline-flex; width: 120px; height: 10px; border-radius: 3px; overflow: hidden; background: var(--grid); vertical-align: middle; }
+  .knobs { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .knob { border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .knob .row { display: flex; align-items: center; gap: 10px; }
+  .knob .row button { width: 40px; padding: 0; font-size: 18px; }
+  .knob .val { font-weight: 800; font-size: 21px; min-width: 70px; text-align: center; }
+  .knob.changed { border-color: var(--link); }
+  .zones { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--aer)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>
+      HeartWatch
+    </div>
+    <nav aria-label="Views">
+      <a href="#fitness" data-tab="fitness">Fitness</a>
+      <a href="#trends" data-tab="trends">Training Trends</a>
+      <a href="#imports" data-tab="imports">Imports</a>
+    </nav>
+    <div class="status">
+      <span id="last-workout"></span>
+      <button type="button" id="update">Update</button>
+    </div>
+  </header>
+
+  <!-- Fitness & Training Capacity -->
+  <section id="tab-fitness" hidden>
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div class="titlebar">
+        <div><h1>Fitness &amp; Training Capacity</h1><div class="sub" id="f-today"></div></div>
+        <div class="pills" role="group" aria-label="Time range" id="f-ranges"></div>
+      </div>
+      <div class="notice" id="f-peak" hidden></div>
+      <div class="cards">
+        <div class="card"><div class="k">Fitness state</div>
+          <div style="display:flex;align-items:center;gap:10px"><span id="c-state-dot" style="width:14px;height:14px;border-radius:50%"></span><span id="c-state" style="font-weight:800;font-size:25px"></span></div>
+          <div class="t" id="c-state-t"></div></div>
+        <div class="card"><div class="k">Fitness score</div><div class="v" id="c-fit"></div><div class="t" id="c-fit-t"></div></div>
+        <div class="card"><div class="k">Training capacity</div><div class="v" id="c-tc"></div><div class="t" id="c-tc-t"></div></div>
+        <div class="card"><div class="k">Long-term load</div><div class="v" style="color:var(--ltl)" id="c-ltl"></div><div class="t" id="c-ltl-t"></div></div>
+        <div class="card"><div class="k">Short-term load</div><div class="v" style="color:var(--stl)" id="c-stl"></div><div class="t" id="c-stl-t"></div></div>
+        <div class="card"><div class="k">Overnight HRV</div><div class="v"><small>not yet</small></div><div class="t">Comes with the RingConn connection. Until then Training Capacity has no HRV adjustment.</div></div>
+      </div>
+
+      <section class="panel">
+        <div class="head">
+          <h2>Fitness &amp; training capacity</h2>
+          <div class="legend">
+            <span><i class="sw" style="height:4px;background:var(--text)"></i>Fitness score (left)</span>
+            <span><i class="sw" style="background:linear-gradient(90deg,var(--fresh),var(--neutral),var(--tired))"></i>Training capacity (right)</span>
+            <span class="loads" hidden><i class="sw" style="height:2px;background:var(--ltl)"></i>Long-term load</span>
+            <span class="loads" hidden><i class="sw" style="height:0;border-top:2px dashed var(--stl)"></i>Short-term load</span>
+            <button type="button" id="toggle-loads" aria-pressed="false">+ Load lines</button>
+          </div>
+        </div>
+        <div class="chart">
+          <div class="axis" style="height:300px" id="f-axis"></div>
+          <div class="plot">
+            <div style="height:300px">
+              <svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Fitness score on the left axis and training capacity on the right axis">
+                <defs><linearGradient id="tcGrad" gradientUnits="userSpaceOnUse" x1="0" y1="10" x2="0" y2="290">
+                  <stop offset="0" stop-color="var(--fresh)"/><stop offset="0.5" stop-color="var(--neutral)"/><stop offset="1" stop-color="var(--tired)"/>
+                </linearGradient></defs>
+                <path id="f-grid" stroke="var(--grid)" fill="none" vector-effect="non-scaling-stroke"/>
+                <line x1="0" y1="150" x2="1000" y2="150" stroke="var(--neutral)" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>
+                <line id="f-risk" x1="0" x2="1000" stroke="var(--risk)" stroke-opacity=".5" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"/>
+                <polyline id="f-ltl" class="loads" hidden fill="none" stroke="var(--ltl)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+                <polyline id="f-stl" class="loads" hidden fill="none" stroke="var(--stl)" stroke-width="2" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+                <polyline id="f-tc" fill="none" stroke="url(#tcGrad)" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+                <polyline id="f-fit" fill="none" stroke="var(--text)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+              </svg>
+            </div>
+            <div class="strip" id="f-strip" role="img" aria-label="Fitness state for each day"></div>
+          </div>
+          <div class="tcaxis" style="height:280px" role="img" aria-label="Training capacity: fresh at the top, fatigued at the bottom"></div>
+        </div>
+        <div class="xlabels" id="f-x"></div>
+        <div class="legend" style="font-size:13px;padding-left:42px" id="f-states"></div>
+        <div class="t">Training capacity is drawn on its own fixed scale: the dashed grey line is zero (balanced), the dotted red line is the overtraining-risk threshold. With load lines shown, the left axis widens to fit them.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Overnight HRV <small>from the RingConn ring</small></h2>
+        <div class="empty">No ring data yet. This chart fills in once the RingConn connection is built (phase 5 of the plan).</div>
+      </section>
+      <div class="note" id="f-note"></div>
+    </div>
+  </section>
+
+  <!-- Training Trends -->
+  <section id="tab-trends" hidden>
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div class="titlebar">
+        <div><h1>Training Trends</h1><div class="sub">Long-term load by kind of effort</div></div>
+        <div class="pills" role="group" aria-label="Time range" id="t-ranges"></div>
+      </div>
+      <div class="cards" id="t-dims"></div>
+      <section class="panel">
+        <div class="head"><h2>Long-term load by kind of effort</h2>
+          <div class="legend"><span><i class="box" style="background:var(--aer)"></i>Aerobic base</span><span><i class="box" style="background:var(--thr)"></i>Threshold</span><span><i class="box" style="background:var(--ana)"></i>Anaerobic</span></div>
+        </div>
+        <div class="chart">
+          <div class="axis" style="height:260px" id="t-axis1"></div>
+          <div class="plot"><div style="height:260px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Stacked long-term load by kind of effort">
+            <line x1="0" y1="20" x2="1000" y2="20" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+            <line x1="0" y1="155" x2="1000" y2="155" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+            <polygon id="t-aer" fill="var(--aer)"/><polygon id="t-thr" fill="var(--thr)"/><polygon id="t-ana" fill="var(--ana)"/>
+          </svg></div></div>
+        </div>
+        <div class="xlabels nr" id="t-x1"></div>
+      </section>
+      <section class="panel">
+        <div class="head">
+          <div><h2 id="t-bars-title">Training load</h2><div class="t" id="t-sessions"></div></div>
+          <div class="pills" role="group" aria-label="Workout type" id="t-sports"></div>
+        </div>
+        <div class="chart">
+          <div class="axis" style="height:240px" id="t-axis2"></div>
+          <div class="plot"><div style="height:240px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Training load per period, stacked by kind of effort">
+            <line x1="0" y1="20" x2="1000" y2="20" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+            <line x1="0" y1="155" x2="1000" y2="155" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+            <line x1="0" y1="290" x2="1000" y2="290" stroke="var(--border)" vector-effect="non-scaling-stroke"/>
+            <path id="t-baer" fill="var(--aer)"/><path id="t-bthr" fill="var(--thr)"/><path id="t-bana" fill="var(--ana)"/>
+          </svg></div></div>
+        </div>
+        <div class="xlabels nr" id="t-x2"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- Imports & settings -->
+  <section id="tab-imports" hidden>
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div class="titlebar"><div><h1>Imports</h1><div class="sub">What HeartWatch has read, and the settings it scores it with</div></div></div>
+      <section class="panel">
+        <h2>Dropbox</h2>
+        <div class="t" id="i-dropbox"></div>
+      </section>
+      <section class="panel">
+        <div class="head"><h2>Settings <small>saved here, overriding config.toml</small></h2>
+          <div style="display:flex;gap:8px"><button type="button" id="s-reset">Reset to config.toml</button><button type="button" class="primary" id="s-save" disabled>Save</button></div>
+        </div>
+        <div class="knobs" id="s-knobs"></div>
+        <div class="zones" id="s-zones"></div>
+      </section>
+      <section class="panel">
+        <div class="head"><h2>Workouts <small id="w-count"></small></h2>
+          <label class="t" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="w-all"> Show strap leftovers</label>
+        </div>
+        <div class="t">Change a type when the file got it wrong: the type decides the Runs / Dumbbells filter, and which of two overlapping recordings counts the shared minutes.</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>When</th><th>Type</th><th>Recorded by</th><th class="num">Min</th><th class="num">Avg</th><th class="num">Peak</th><th class="num">Load</th><th>Zones 1–5</th></tr></thead>
+          <tbody id="w-rows"></tbody>
+        </table></div>
+        <button type="button" id="w-more" hidden>Show more</button>
+      </section>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+const RANGES = [["1W", 7], ["1M", 30], ["3M", 91], ["6M", 182], ["1Y", 365], ["2Y", 730]];
+const BUCKETS = { "1W": [1, "per day"], "1M": [1, "per day"], "3M": [7, "per week"], "6M": [7, "per week"], "1Y": [30, "per month"], "2Y": [30, "per month"] };
+const STATES = {
+  "Building": ["#3b5bdb", "Training harder than your baseline, so fitness is rising. After 2–3 weeks of this, plan a lighter week."],
+  "Maintaining": ["#a3a9b3", "Training at about your usual level. Fitness is holding steady."],
+  "Recovering": ["#2e8b57", "Lighter than usual lately. You are fresh and can take on a harder week."],
+  "Detraining": ["#c9a227", "Long-term load is falling. Fitness fades if this lasts more than a couple of weeks."],
+  "Overtraining risk": ["#c0262d", "Fatigue is far above your base. Back off for a few days."],
+};
+const SPORT_NAMES = { run: "Run", strength: "Dumbbells", other: "Other" };
+const KNOBS = [
+  ["resting_hr", "Resting heart rate", 1, "bpm", "From the ring later; for now your own number."],
+  ["max_hr", "Max heart rate", 1, "bpm", "Raise it when a workout goes higher."],
+  ["fitness_days", "Fitness score smoothing", 3, "d", "How slowly the fitness score follows long-term load."],
+  ["aerobic_days", "Long-term load: aerobic", 5, "d", "Zones 1–2."],
+  ["threshold_days", "Long-term load: threshold", 5, "d", "Zones 3–4."],
+  ["anaerobic_days", "Long-term load: anaerobic", 2, "d", "Zone 5."],
+  ["fatigue_days", "Short-term load (fatigue)", 1, "d", "How long a hard session counts as fatigue."],
+];
+const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
+            settings: null, draft: null, showAll: false, rows: 100 };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v);
+const day = (iso) => new Date(iso.slice(0, 10) + "T12:00:00");
+const fmtDay = (iso, long) => day(iso).toLocaleDateString("en-US", long ? { month: "short", year: "numeric" } : { month: "short", day: "numeric" });
+const avg = (xs) => xs.reduce((u, v) => u + v, 0) / xs.length;
+// Rounds an axis maximum up so its half is a round number too.
+const nice = (v, step) => { step = v > 200 ? 100 : v > 100 ? 50 : step; return Math.max(step, Math.ceil(v / step) * step); };
+const X = (i, n) => (n > 1 ? i / (n - 1) * 1000 : 500).toFixed(1);
+const line = (vals, y) => vals.map((v, i) => X(i, vals.length) + "," + y(v).toFixed(1)).join(" ");
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opts);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 5000);
+}
+
+function pills(el, options, current, pick) {
+  el.innerHTML = options.map(([id, label]) => `<button type="button" data-id="${id}" aria-pressed="${id === current}">${label}</button>`).join("");
+  el.querySelectorAll("button").forEach((b) => (b.onclick = () => pick(b.dataset.id)));
+}
+
+// The last `span` days, as index range into the day columns.
+function window_(span) {
+  const n = S.data.days.length;
+  return [Math.max(0, n - span), n];
+}
+function xLabels(el, lo, hi, span) {
+  const q = (i) => fmtDay(S.data.days[lo + Math.round(i * (hi - lo - 1) / 3)], span > 200);
+  el.innerHTML = [q(0), q(1), q(2), span === 7 ? "Today" : q(3)].map((s) => `<span>${s}</span>`).join("");
+}
+// Averages each column over groups of days, so a 2-year chart has ~120 points.
+function points(keys, lo, hi, span) {
+  const b = Math.ceil(span / 120), out = [];
+  for (let i = lo; i < hi; i += b) {
+    const p = {};
+    for (const k of keys) p[k] = avg(S.data[k].slice(i, Math.min(i + b, hi)));
+    out.push(p);
+  }
+  return out;
+}
+
+function renderHeader() {
+  const d = S.data;
+  if (!d || !d.last_workout) { $("last-workout").textContent = "No workouts yet"; return; }
+  // Calendar days, so yesterday's workout reads "1 day ago" even 20 hours later.
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const ago = Math.round((today - day(d.last_workout)) / 86400000);
+  $("last-workout").textContent = `Last workout ${fmtDay(d.last_workout)}` + (ago > 0 ? ` (${ago} day${ago > 1 ? "s" : ""} ago)` : " (today)");
+  $("last-workout").style.color = ago >= 8 ? "var(--risk)" : "";
+}
+
+function renderFitness() {
+  const d = S.data, n = d.days.length;
+  pills($("f-ranges"), RANGES.map((r) => [r[0], r[0]]), S.fRange, (id) => { S.fRange = id; renderFitness(); });
+  if (!n) { $("f-today").textContent = "No workouts imported yet."; return; }
+  const span = RANGES.find((r) => r[0] === S.fRange)[1];
+  const [lo, hi] = window_(span), t = n - 1, back = Math.max(0, t - 28);
+  $("f-today").textContent = "Today, " + day(d.days[t]).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  const st = d.state[t];
+  $("c-state").textContent = st; $("c-state-dot").style.background = STATES[st][0]; $("c-state-t").textContent = STATES[st][1];
+  const pct = (now, then) => then ? `${now >= then ? "Up" : "Down"} ${Math.abs(Math.round((now - then) / then * 100))}% from 4 weeks ago.` : "";
+  $("c-fit").textContent = Math.round(d.fitness[t]);
+  $("c-fit-t").textContent = pct(d.fitness[t], d.fitness[back]) + ` Long-term load smoothed over ${d.settings.fitness_days} days.`;
+  const tc = Math.round(d.capacity[t]);
+  $("c-tc").textContent = sign(tc);
+  $("c-tc").style.color = tc > 3 ? "var(--fresh)" : tc < -3 ? "var(--tired)" : "";
+  $("c-tc-t").textContent = "Long-term minus short-term load. No HRV adjustment until the ring is connected.";
+  $("c-ltl").textContent = Math.round(d.ltl[t]);
+  $("c-ltl-t").textContent = pct(d.ltl[t], d.ltl[back]) + ` Aerobic ${Math.round(d.ltl_aerobic[t])}, threshold ${Math.round(d.ltl_threshold[t])}, anaerobic ${Math.round(d.ltl_anaerobic[t])}.`;
+  $("c-stl").textContent = Math.round(d.stl[t]);
+  $("c-stl-t").textContent = `Your fatigue, averaged over about ${d.settings.fatigue_days} days.`;
+
+  const peak = d.peak_hr;
+  $("f-peak").hidden = !(peak && peak.bpm > d.settings.max_hr);
+  if (peak) $("f-peak").innerHTML = `Your highest recorded heart rate is ${peak.bpm} (${fmtDay(peak.date)}), above your max of ${d.settings.max_hr}. <a href="#imports">Raise max heart rate</a> to move your zones up.`;
+
+  const pts = points(["fitness", "ltl", "stl", "capacity"], lo, hi, span);
+  // Left axis: tight around the fitness score, never narrower than 10 points so a quiet week doesn't look dramatic.
+  const vals = pts.map((p) => p.fitness).concat(S.showLoads ? pts.flatMap((p) => [p.ltl, p.stl]) : []);
+  let a = Math.min(...vals), b = Math.max(...vals);
+  if (b - a < 10) { const m = (a + b) / 2; a = m - 5; b = m + 5; }
+  const pad = (b - a) * 0.08; a -= pad; b += pad;
+  const step = [1, 2, 5, 10, 20, 25, 50, 100].find((s) => (b - a) / s <= 5) || 200;
+  a = Math.floor(a / step) * step; b = Math.ceil(b / step) * step;
+  const yF = (v) => 10 + (b - v) / (b - a) * 280;
+  let axis = "", grid = "";
+  for (let v = a; v <= b + 1e-9; v += step) {
+    axis += `<span style="top:${(yF(v) / 3).toFixed(2)}%">${v}</span>`;
+    grid += `M0 ${yF(v).toFixed(1)}H1000`;
+  }
+  $("f-axis").innerHTML = axis; $("f-grid").setAttribute("d", grid);
+  // Right axis: fixed and symmetric, so a colour at a given height always means the same.
+  const tcMax = Math.max(40, Math.ceil(Math.max(...d.capacity.slice(lo, hi).map(Math.abs)) / 10) * 10);
+  const yT = (v) => 150 - v / tcMax * 140;
+  $("f-risk").setAttribute("y1", yT(-20)); $("f-risk").setAttribute("y2", yT(-20));
+  $("f-fit").setAttribute("points", line(pts.map((p) => p.fitness), yF));
+  $("f-tc").setAttribute("points", line(pts.map((p) => p.capacity), yT));
+  $("f-ltl").setAttribute("points", line(pts.map((p) => p.ltl), yF));
+  $("f-stl").setAttribute("points", line(pts.map((p) => p.stl), yF));
+  // The attribute, not .hidden: SVG elements have no hidden property.
+  document.querySelectorAll(".loads").forEach((el) => el.toggleAttribute("hidden", !S.showLoads));
+  const tl = $("toggle-loads");
+  tl.textContent = S.showLoads ? "Hide load lines" : "+ Load lines";
+  tl.setAttribute("aria-pressed", S.showLoads); tl.className = S.showLoads ? "primary" : "";
+
+  const runs = [];
+  for (let i = lo; i < hi; i++) {
+    const last = runs[runs.length - 1];
+    if (last && last.s === d.state[i]) last.n++; else runs.push({ s: d.state[i], n: 1 });
+  }
+  $("f-strip").innerHTML = runs.map((r) => `<div title="${r.s}" style="flex:${r.n} 0 0;background:${STATES[r.s][0]}"></div>`).join("");
+  $("f-states").innerHTML = `<span>Fitness state:</span>` + Object.entries(STATES).map(([k, [c]]) => `<span><i class="box" style="width:18px;height:10px;background:${c}"></i>${k}</span>`).join("");
+  xLabels($("f-x"), lo, hi, span);
+  const s = d.settings;
+  $("f-note").textContent = `Load is scored from heart rate alone (TRIMP, using heart rate reserve: resting ${s.resting_hr}, max ${s.max_hr}, zone 2 = ${d.zones[1][0]}–${d.zones[1][1]} bpm). `
+    + `Short-term load averages over ${s.fatigue_days} days; long-term load over ${s.aerobic_days} days for aerobic work, ${s.threshold_days} for threshold and ${s.anaerobic_days} for anaerobic. `
+    + `Fitness score is long-term load smoothed again over ${s.fitness_days} days. Training capacity = long-term load − short-term load.`;
+}
+
+function renderTrends() {
+  const d = S.data, n = d.days.length;
+  pills($("t-ranges"), RANGES.map((r) => [r[0], r[0]]), S.tRange, (id) => { S.tRange = id; renderTrends(); });
+  pills($("t-sports"), [["all", "All"], ["run", "Runs"], ["strength", "Dumbbells"]], S.sport, (id) => { S.sport = id; renderTrends(); });
+  if (!n) return;
+  const span = RANGES.find((r) => r[0] === S.tRange)[1];
+  const [lo, hi] = window_(span), t = hi - 1;
+
+  const pts = points(["ltl_aerobic", "ltl_threshold", "ltl_anaerobic"], lo, hi, span);
+  const tMax = nice(Math.max(1, ...pts.map((p) => p.ltl_aerobic + p.ltl_threshold + p.ltl_anaerobic)) * 1.1, 10);
+  const yT = (v) => (290 - v / tMax * 270).toFixed(1);
+  const band = (low, high) => pts.map((p, i) => X(i, pts.length) + "," + yT(high(p)))
+    .concat(pts.map((p, i) => X(i, pts.length) + "," + yT(low(p))).reverse()).join(" ");
+  $("t-aer").setAttribute("points", band(() => 0, (p) => p.ltl_aerobic));
+  $("t-thr").setAttribute("points", band((p) => p.ltl_aerobic, (p) => p.ltl_aerobic + p.ltl_threshold));
+  $("t-ana").setAttribute("points", band((p) => p.ltl_aerobic + p.ltl_threshold, (p) => p.ltl_aerobic + p.ltl_threshold + p.ltl_anaerobic));
+  const axis = (max) => `<span style="top:6.7%">${max}</span><span style="top:51.7%">${max / 2}</span><span style="top:96.7%">0</span>`;
+  $("t-axis1").innerHTML = axis(tMax);
+  xLabels($("t-x1"), lo, hi, span);
+
+  const total = d.ltl[t] || 1;
+  const change = (k) => { const then = d[k][lo]; if (!then) return ""; const c = Math.round((d[k][t] - then) / then * 100); return (c > 0 ? "+" : c < 0 ? "−" : "") + Math.abs(c) + "%"; };
+  const dims = [
+    ["Aerobic base", "--aer", "ltl_aerobic", "Zones 1–2: easy running and your dumbbell sessions."],
+    ["Threshold", "--thr", "ltl_threshold", "Zones 3–4: steady-hard running and hills."],
+    ["Anaerobic", "--ana", "ltl_anaerobic", "Zone 5: finishing kicks and all-out efforts."],
+  ];
+  $("t-dims").innerHTML = dims.map(([name, c, k, text]) => `<div class="card">
+      <div style="display:flex;align-items:center;gap:8px"><i class="box" style="width:14px;height:14px;background:var(${c})"></i><span class="k">${name}</span></div>
+      <div style="display:flex;align-items:baseline;gap:10px"><span class="v" style="font-size:34px">${Math.round(d[k][t])}</span><span style="font-weight:600;color:var(--muted)">${change(k)}</span></div>
+      <div class="t">${text} ${Math.round(d[k][t] / total * 100)}% of your long-term load.</div></div>`).join("");
+
+  const [size, label] = BUCKETS[S.tRange];
+  const sports = S.sport === "all" ? ["run", "strength", "other"] : [S.sport];
+  const sums = [];
+  for (let i = lo; i < hi; i += size) {
+    const e = Math.min(i + size, hi), s = { a: 0, t: 0, n: 0 };
+    for (const sp of sports) for (let j = i; j < e; j++) {
+      s.a += d.load[sp].aerobic[j]; s.t += d.load[sp].threshold[j]; s.n += d.load[sp].anaerobic[j];
+    }
+    sums.push(s);
+  }
+  const bMax = nice(Math.max(1, ...sums.map((b) => b.a + b.t + b.n)) * 1.1, 10);
+  const bw = 1000 / sums.length, paths = { a: "", t: "", n: "" };
+  sums.forEach((b, i) => {
+    let base = 0;
+    const x = (i * bw + bw * 0.14).toFixed(1), w = (bw * 0.72).toFixed(1);
+    for (const k of ["a", "t", "n"]) {
+      const h = b[k] / bMax * 270;
+      if (h > 0) paths[k] += `M${x} ${(290 - base - h).toFixed(1)}h${w}v${h.toFixed(1)}h-${w}Z`;
+      base += h;
+    }
+  });
+  $("t-baer").setAttribute("d", paths.a); $("t-bthr").setAttribute("d", paths.t); $("t-bana").setAttribute("d", paths.n);
+  $("t-axis2").innerHTML = axis(bMax);
+  $("t-bars-title").textContent = `Training load ${label}`;
+  const count = (sp) => d.sessions[sp].slice(lo, hi).reduce((u, v) => u + v, 0);
+  $("t-sessions").textContent = `${count("run")} runs and ${count("strength")} dumbbell sessions in this range` + (count("other") ? `, plus ${count("other")} untyped` : "");
+  xLabels($("t-x2"), lo, hi, span);
+}
+
+function renderImports() {
+  const d = S.data;
+  const polled = d && d.last_poll ? new Date(d.last_poll * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+  $("i-dropbox").innerHTML = !d ? "" : !d.dropbox
+    ? "Not connected yet. Follow the Dropbox steps in the README, then the Update button fetches new workouts."
+    : `Checked once a day, and whenever you press Update. Last checked: ${polled || "never"}.`;
+
+  if (S.settings) {
+    const v = S.draft, def = S.settings.defaults;
+    $("s-knobs").innerHTML = KNOBS.map(([k, label, inc, unit, help]) => `<div class="knob${v[k] !== S.settings.values[k] ? " changed" : ""}">
+      <div style="font-weight:600;font-size:14px">${label}</div>
+      <div class="row"><button type="button" data-k="${k}" data-d="${-inc}" aria-label="Lower">−</button><span class="val">${v[k]} ${unit}</span><button type="button" data-k="${k}" data-d="${inc}" aria-label="Higher">+</button></div>
+      <div class="t" style="font-size:13px">${help}${v[k] !== def[k] ? ` config.toml: ${def[k]}.` : ""}</div></div>`).join("");
+    $("s-knobs").querySelectorAll("button").forEach((b) => (b.onclick = () => {
+      const [lo, hi] = S.settings.limits[b.dataset.k];
+      S.draft[b.dataset.k] = Math.min(hi, Math.max(lo, S.draft[b.dataset.k] + Number(b.dataset.d)));
+      renderImports();
+    }));
+    $("s-save").disabled = KNOBS.every(([k]) => v[k] === S.settings.values[k]);
+    const hrr = v.max_hr - v.resting_hr, edge = [0.5, 0.6, 0.7, 0.8, 0.9].map((f) => Math.round(v.resting_hr + f * hrr)).concat(v.max_hr);
+    $("s-zones").innerHTML = "<span>Zones:</span>" + [1, 2, 3, 4, 5].map((z) => `<span>Zone ${z}: ${edge[z - 1]}–${edge[z]}</span>`).join("");
+  }
+
+  if (S.workouts) {
+    const all = S.workouts.filter((w) => S.showAll || w.workout);
+    $("w-count").textContent = `${S.workouts.filter((w) => w.workout).length} workouts`;
+    const zc = ["#a3a9b3", "var(--aer)", "#2e8b57", "var(--thr)", "var(--tired)", "var(--risk)"];
+    const by = (w) => w.source === "takeout" ? "Google Fit backfill" : w.detail === "generic/exercise" ? "TICKR X" : "Wahoo app";
+    $("w-rows").innerHTML = all.slice(0, S.rows).map((w) => {
+      const zt = w.zone_minutes.slice(1).reduce((u, v) => u + v, 0) || 1;
+      const bar = w.zone_minutes.slice(1).map((m, i) => `<i style="width:${m / zt * 100}%;background:${zc[i + 1]}"></i>`).join("");
+      const opts = ["run", "strength", "other"].map((s) => `<option value="${s}"${s === w.sport ? " selected" : ""}>${SPORT_NAMES[s]}</option>`).join("");
+      const when = new Date(w.start).toLocaleString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      return `<tr class="${w.workout ? "" : "leftover"}"><td>${when}</td>
+        <td><select data-id="${w.id}" data-file="${w.file_sport}" aria-label="Workout type">${opts}</select>${w.overridden ? ' <span class="t" title="Changed by hand">✎</span>' : ""}</td>
+        <td title="${esc(w.detail)}">${by(w)}</td><td class="num">${Math.round(w.minutes)}</td><td class="num">${w.avg_hr}</td><td class="num">${w.peak_hr}</td>
+        <td class="num">${Math.round(w.load)}</td><td><span class="zbar" title="${w.zone_minutes.slice(1).map((m, i) => `zone ${i + 1}: ${Math.round(m)} min`).join(", ")}">${bar}</span></td></tr>`;
+    }).join("");
+    $("w-rows").querySelectorAll("select").forEach((sel) => (sel.onchange = async () => {
+      sel.disabled = true;
+      try {
+        await api(`/api/workouts/${sel.dataset.id}/sport`, { sport: sel.value === sel.dataset.file ? null : sel.value });
+        toast("Type changed.");
+        await refresh(true);
+      } catch (e) { toast(e.message); sel.disabled = false; }
+    }));
+    $("w-more").hidden = all.length <= S.rows;
+  }
+}
+
+function render() {
+  for (const tab of ["fitness", "trends", "imports"]) {
+    $("tab-" + tab).hidden = tab !== S.tab;
+    document.querySelector(`nav a[data-tab=${tab}]`).classList.toggle("on", tab === S.tab);
+  }
+  renderHeader();
+  if (!S.data) return;
+  if (S.tab === "fitness") renderFitness();
+  if (S.tab === "trends") renderTrends();
+  if (S.tab === "imports") renderImports();
+}
+
+async function refresh(withWorkouts) {
+  const [data, set] = await Promise.all([api("/api/series"), api("/api/settings")]);
+  S.data = data; S.settings = set; S.draft = { ...set.values };
+  if (withWorkouts || S.tab === "imports") S.workouts = (await api("/api/workouts")).workouts;
+  render();
+}
+
+window.addEventListener("hashchange", () => {
+  S.tab = (location.hash.slice(1) || "fitness");
+  if (!["fitness", "trends", "imports"].includes(S.tab)) S.tab = "fitness";
+  if (S.tab === "imports" && !S.workouts) refresh(true).catch((e) => toast(e.message)); else render();
+});
+$("toggle-loads").onclick = () => { S.showLoads = !S.showLoads; renderFitness(); };
+$("w-all").onchange = (e) => { S.showAll = e.target.checked; renderImports(); };
+$("w-more").onclick = () => { S.rows += 200; renderImports(); };
+$("s-save").onclick = async () => {
+  try { await api("/api/settings", S.draft); toast("Settings saved. Everything is rescored."); await refresh(true); }
+  catch (e) { toast(e.message); }
+};
+$("s-reset").onclick = async () => {
+  try { await api("/api/settings", {}); toast("Back to the config.toml settings."); await refresh(true); }
+  catch (e) { toast(e.message); }
+};
+$("update").onclick = async () => {
+  const b = $("update");
+  b.disabled = true; b.textContent = "Updating…";
+  try {
+    const r = await api("/api/poll", {});
+    toast(r.added.length ? `${r.added.length} new workout${r.added.length > 1 ? "s" : ""} imported.` : "No new workouts.");
+    if (r.failed.length) toast(`${r.failed.length} file(s) couldn't be read: ${r.failed[0]}`);
+    await refresh(S.tab === "imports");
+  } catch (e) { toast(e.message); }
+  finally { b.disabled = false; b.textContent = "Update"; }
+};
+
+S.tab = ["fitness", "trends", "imports"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "fitness";
+refresh(S.tab === "imports").catch((e) => toast("Couldn't load data: " + e.message));
+</script>
+</body>
+</html>

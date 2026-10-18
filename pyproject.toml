@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heartwatch"
+version = "0.1.0"
+description = "Wahoo-style fitness and training-load charts from heart rate"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+dependencies = [
+    "fitdecode>=0.10",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.scripts]
+heartwatch = "heartwatch.__main__:main"
+
+[tool.setuptools]
+packages = ["heartwatch"]
+
+[tool.setuptools.package-data]
+heartwatch = ["static/*"]

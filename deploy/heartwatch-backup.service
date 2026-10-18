@@ -1,0 +1,25 @@
+[Unit]
+Description=HeartWatch copy of the archive to the NAS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=heartwatch
+Group=heartwatch
+WorkingDirectory=/opt/heartwatch
+ExecStart=/opt/heartwatch/.venv/bin/python -m heartwatch --config /etc/heartwatch/config.toml backup
+TimeoutStartSec=2h
+
+CapabilityBoundingSet=
+NoNewPrivileges=true
+StateDirectory=heartwatch
+StateDirectoryMode=0750
+Environment=HOME=/var/lib/heartwatch
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+Nice=10
+MemoryMax=200M
+CPUQuota=25%
