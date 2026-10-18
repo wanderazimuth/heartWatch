@@ -9,7 +9,9 @@ dropbox_folder = "/Apps/WahooFitness"           # where the Wahoo app shares its
 dropbox_token_file = "/var/lib/heartwatch/dropbox_token"
 heartbeat_url = ""   # pinged when a poll finds a new workout; set the check's period to 7 days
 
-# Nightly copy to the NAS (rsync over ssh with the key install.sh made). Empty: no copy.
+# Nightly copy to the NAS: a shared folder (mounted only during the backup, with the account
+# in /etc/heartwatch/nas-credentials), or else rsync over ssh with the key install.sh made.
+backup_share = ""    # e.g. "//nas.local/heartwatch"
 backup_target = ""   # e.g. "heartwatch@nas.local:/volume1/Backup/heartwatch"
 backup_ssh_key = "/var/lib/heartwatch/.ssh/id_ed25519"
 

@@ -89,7 +89,7 @@ Dropbox token (readable by that user only), and installs:
 |---|---|
 | `heartwatch-web` | the dashboard on port 8081 |
 | `heartwatch-poll.timer` | the Dropbox import, daily at 11:00 (skips itself until Dropbox is connected) |
-| `heartwatch-backup.timer` | the NAS copy at 02:30, enabled once `backup_target` is set |
+| `heartwatch-backup.timer` | the NAS copy at 02:30, enabled once `backup_share` or `backup_target` is set |
 
 Commands on the Pi run as the service user:
 
@@ -98,21 +98,30 @@ sudo -u heartwatch /opt/heartwatch/.venv/bin/heartwatch --config /etc/heartwatch
 ```
 
 After editing `/etc/heartwatch/config.toml`, `sudo systemctl restart heartwatch-web` (and rerun
-`install.sh` if you set `backup_target`).
+`install.sh` if you change `backup_share` or `backup_target`).
 
 ### NAS backup
 
 Each night `heartwatch backup` copies the archive (every .fit and Takeout file) and a snapshot of the
-database to `backup_target` with rsync over ssh. Nothing is ever deleted on the NAS. The archive is
-what matters: the database can be rebuilt from it, except for types you fixed and saved settings,
-which the snapshot keeps.
+database to the NAS with rsync. Nothing is ever deleted on the NAS. The archive is what matters: the
+database can be rebuilt from it, except for types you fixed and saved settings, which the snapshot
+keeps.
 
-1. On the NAS, make a shared folder (say `Backup/heartwatch`) and an account that can ssh in and
-   write to it. The NAS needs SSH enabled and rsync installed.
-2. Add the public key `install.sh` printed (`/var/lib/heartwatch/.ssh/id_ed25519.pub`) to that
-   account's `~/.ssh/authorized_keys`.
-3. Set `backup_target = "user@nas.local:/volume1/Backup/heartwatch"`, rerun `install.sh`, then
-   `sudo systemctl start heartwatch-backup` and check `journalctl -u heartwatch-backup`.
+With a shared folder (the simplest, and no admin login on the NAS):
+
+1. On the NAS, create a shared folder (say `heartwatch`) and a regular, non-admin user for the Pi
+   with read/write on that folder only. SMB (Windows file sharing) must be on.
+2. Set `backup_share = "//<nas address>/heartwatch"` in `/etc/heartwatch/config.toml` and rerun
+   `install.sh`. It makes `/etc/heartwatch/nas-credentials` (root only); put the NAS user's name and
+   password in it: `sudo nano /etc/heartwatch/nas-credentials`.
+3. `sudo systemctl start heartwatch-backup` and check `journalctl -u heartwatch-backup`.
+
+systemd mounts the folder at `/mnt/heartwatch` only while the backup runs. If the mount fails the
+backup fails too, rather than copying onto the SD card.
+
+Or over ssh, if your NAS lets a regular user log in with a key: set `backup_target =
+"user@<nas address>:/path/to/folder"` and add the key `install.sh` printed
+(`/var/lib/heartwatch/.ssh/id_ed25519.pub`) to that user's `~/.ssh/authorized_keys`.
 
 ## Tests
 

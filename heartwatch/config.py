@@ -26,8 +26,11 @@ class Config:
     # period then alerts you when workouts stop arriving.
     heartbeat_url: str = ""
 
-    # Nightly copy of the archive and a database snapshot, by rsync over ssh,
-    # e.g. "heartwatch@nas.local:/volume1/Backup/heartwatch". Empty: no copy.
+    # Nightly copy of the archive and a database snapshot. Either a NAS share
+    # (e.g. "//nas.local/heartwatch"), which install.sh mounts at /mnt/heartwatch
+    # only while the backup runs, or an rsync-over-ssh target
+    # (e.g. "heartwatch@nas.local:/volume1/Backup/heartwatch"). Both empty: no copy.
+    backup_share: str = ""
     backup_target: str = ""
     backup_ssh_key: str = "/var/lib/heartwatch/.ssh/id_ed25519"
 

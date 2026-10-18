@@ -31,9 +31,25 @@ class BackupTest(unittest.TestCase):
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM workouts").fetchone()[0], 1)
 
     def test_rsync_never_deletes(self):
-        cmds = backup.rsync_commands(self.cfg, Path("snap.db"))
+        cmds = backup.rsync_commands(self.cfg, Path("snap.db"), self.cfg.backup_target)
         self.assertEqual(cmds[0][-1], "nas:/backup/hw/archive/")
+        self.assertIn("-e", cmds[0])
         self.assertFalse(any("--delete" in arg for cmd in cmds for arg in cmd))
+
+    def test_a_mounted_share_is_copied_to_locally(self):
+        cmds = backup.rsync_commands(self.cfg, Path("snap.db"), "/mnt/heartwatch/")
+        self.assertEqual(cmds[1][-2:], ["snap.db", "/mnt/heartwatch/heartwatch.db"])
+        self.assertNotIn("-e", cmds[0])
+
+    def test_share_must_really_be_mounted(self):
+        mounts = self.root / "mounts"
+        mounts.write_text("/dev/root / ext4 rw 0 0\nsystemd-1 /mnt/heartwatch autofs rw 0 0\n")
+        self.assertFalse(backup.mounted("/mnt/heartwatch", str(mounts)))
+        mounts.write_text("//nas/heartwatch /mnt/heartwatch cifs rw 0 0\n")
+        self.assertTrue(backup.mounted("/mnt/heartwatch", str(mounts)))
+        cfg = Config(db_path=self.cfg.db_path, archive_dir=self.cfg.archive_dir, backup_share="//nas/heartwatch")
+        with self.assertRaises(SystemExit):
+            backup.run(cfg, mount=str(self.root / "not-mounted"))
 
     def test_archive_can_move(self):
         # Paths are stored relative to archive_dir, so a copied archive (Windows to the Pi) still works.
