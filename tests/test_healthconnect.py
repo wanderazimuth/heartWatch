@@ -62,6 +62,12 @@ class ReceiveTest(unittest.TestCase):
         self.send({"resting_heart_rate": [rhr(d, 60, origin="com.other.app"), rhr(d, 51)]})
         self.assertEqual(healthconnect.resting_hr(self.conn), {d: 51})
 
+    def test_test_payloads_are_not_stored(self):
+        got = self.send({"test": True, "resting_heart_rate": [rhr(date(2024, 3, 4), 57)]})
+        self.assertTrue(got.test)
+        self.assertEqual(healthconnect.resting_hr(self.conn), {})
+        self.assertFalse(Path(self.cfg.archive_dir, "healthconnect").exists())
+
     def test_nothing_useful_is_not_archived(self):
         self.assertEqual(self.send({"timestamp": "x", "steps": [{"count": 5}]}).resting_hr, 0)
         self.assertFalse(Path(self.cfg.archive_dir, "healthconnect").exists())

@@ -26,6 +26,7 @@ class Received:
     resting_hr: int = 0
     sleep: int = 0
     deleted: int = 0
+    test: bool = False
 
 
 def _instant(text: str) -> int:
@@ -56,6 +57,10 @@ def receive(conn: sqlite3.Connection, cfg: Config, body: bytes) -> Received:
     payload = json.loads(body)
     if not isinstance(payload, dict):
         raise ValueError("expected a JSON object")
+    if payload.get("test") is True:
+        # The app's Test button sends made-up sample records; they prove the
+        # connection works but must not become readings.
+        return Received(test=True)
     rows = _records(payload)
     deleted = [d["id"] for d in payload.get("deleted") or [] if isinstance(d, dict) and d.get("id")]
     if not rows and not deleted:

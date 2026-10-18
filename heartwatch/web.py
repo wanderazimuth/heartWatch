@@ -290,8 +290,11 @@ def make_handler(cfg: Config):
                 return self._json({"error": f"couldn't read the payload: {e}"}, 400)
             finally:
                 conn.close()
-            log.info("health connect: %d resting HR, %d sleep, %d deleted", got.resting_hr, got.sleep, got.deleted)
-            return self._json({"ok": True, "resting_hr": got.resting_hr, "sleep": got.sleep, "deleted": got.deleted})
+            if got.test:
+                log.info("health connect: test payload from the phone, not stored")
+            else:
+                log.info("health connect: %d resting HR, %d sleep, %d deleted", got.resting_hr, got.sleep, got.deleted)
+            return self._json({"ok": True, "test": got.test, "resting_hr": got.resting_hr, "sleep": got.sleep, "deleted": got.deleted})
 
         def _poll(self):
             if not cfg.dropbox_app_key:
