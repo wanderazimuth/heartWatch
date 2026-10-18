@@ -3,6 +3,7 @@ import tempfile
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
@@ -106,6 +107,28 @@ class WebTest(unittest.TestCase):
     def test_bad_type(self):
         self.assertEqual(self.post("/api/workouts/1/sport", {"sport": "swim"})[0], 400)
         self.assertEqual(self.post("/api/workouts/999/sport", {"sport": "run"})[0], 404)
+
+    def upload(self, data, content_type, name="Data Export.zip"):
+        req = urllib.request.Request(self.base + "/api/ringconn", data,
+                                     {"Content-Type": content_type, "X-Filename": urllib.parse.quote(name)})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.load(r)
+        except urllib.error.HTTPError as e:
+            with e:
+                return e.code, json.load(e)
+
+    def test_ringconn_upload(self):
+        csv = ("Date,Avg. Heart Rate(bpm),Min. Heart Rate(bpm),Avg. HRV(ms)\n"
+               "2026-10-01,66,48,31\n2026-10-02,70,52,27\n")
+        self.assertEqual(self.upload(csv.encode(), "text/plain")[0], 415)
+        self.assertEqual(self.upload(b"Date,Steps\n2026-10-01,9000\n", "text/csv")[0], 400)
+        status, body = self.upload(csv.encode(), "text/csv", "vitals.csv")
+        self.assertEqual((status, body["days"]), (200, 2))
+        d = self.get("/api/series")
+        self.assertEqual(d["hrv"][d["days"].index("2026-10-01")], 31)
+        self.assertEqual(d["ring"]["days"], 2)
+        self.assertEqual(d["hrv_adjust"][-1], 0)  # two days are not a baseline
 
     def test_poll_without_dropbox(self):
         status, body = self.post("/api/poll", {})

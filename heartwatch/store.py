@@ -14,7 +14,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterator
 
-from . import fit, takeout
+from . import fit, ringconn, takeout
 from .config import Config
 from .load import Load, workout_load, zone
 
@@ -96,6 +96,34 @@ def import_takeout(conn: sqlite3.Connection, cfg: Config, session: takeout.Sessi
              max(b for _, b in hr), int(time.time())))
         rebuild(conn, cfg, overlapping(conn, start, end))
     return Imported(name, "added")
+
+
+def import_ringconn(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) -> list[ringconn.Vitals]:
+    """Store a RingConn export's days (newer exports win) and archive the file. Raises ValueError."""
+    days = ringconn.read(name, data)
+    if not days:
+        raise ValueError("no days with ring data in this file")
+    name = Path(name).name
+    dest = Path(cfg.archive_dir) / "ringconn" / name
+    if dest.exists() and dest.read_bytes() != data:
+        dest = dest.with_name(f"{dest.stem}-{hashlib.sha256(data).hexdigest()[:8]}{dest.suffix}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+    now = int(time.time())
+    with conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO vitals (day, avg_hr, min_hr, max_hr, spo2, hrv, hrv_min, hrv_max, imported)"
+            " VALUES (:day, :avg_hr, :min_hr, :max_hr, :spo2, :hrv, :hrv_min, :hrv_max, :imported)",
+            [{"day": v.day.isoformat(), **v.values(), "imported": now} for v in days])
+    return days
+
+
+def vitals(conn: sqlite3.Connection) -> dict[date, sqlite3.Row]:
+    return {date.fromisoformat(r["day"]): r for r in conn.execute("SELECT * FROM vitals ORDER BY day")}
+
+
+def hrv_readings(conn: sqlite3.Connection) -> dict[date, float]:
+    return {d: r["hrv"] for d, r in vitals(conn).items() if r["hrv"] is not None}
 
 
 def samples(cfg: Config, row: sqlite3.Row) -> list[tuple[float, int]]:

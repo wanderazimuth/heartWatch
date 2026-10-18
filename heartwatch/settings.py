@@ -20,6 +20,7 @@ TUNABLE = {
     "threshold_days": (7, 180),
     "anaerobic_days": (3, 120),
     "fatigue_days": (2, 28),
+    "hrv_adjust_max": (0, 20),
 }
 
 

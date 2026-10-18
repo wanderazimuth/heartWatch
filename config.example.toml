@@ -26,6 +26,9 @@ threshold_days = 35    # long-term load, zones 3-4
 anaerobic_days = 18    # long-term load, zone 5
 fatigue_days = 7       # short-term load
 
+# HRV from the ring moves training capacity by up to this much either way; 0 turns it off.
+hrv_adjust_max = 12
+
 # Short-term load counts harder work extra.
 threshold_fatigue = 1.4
 anaerobic_fatigue = 2.0

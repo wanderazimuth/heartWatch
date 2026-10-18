@@ -8,7 +8,7 @@ Training Trends, computed from heart rate alone and served from a Raspberry Pi o
 ```
 Wahoo app ──.FIT──▶ Dropbox ──(Pi polls daily, or Update button)──▶ importer ──▶ SQLite ──▶ dashboard :8081
 Wahoo export + Google Takeout ──(one-time backfill)─────────▲
-RingConn ─▶ Health Connect ─▶ companion app (later) ─▶ POST /api/hrv
+RingConn app export (zip) ─▶ Imports page upload or `heartwatch ringconn` ─▶ SQLite
 ```
 
 Layout:
@@ -97,9 +97,12 @@ database snapshot (rsync over ssh, never deleting). Deployed with `deploy/push.s
 Archive paths are stored relative to `archive_dir`, so the archive and database
 can move between machines as they are.
 
-**5. Ring HRV (later)**
-First check by hand that RingConn writes HRV to Health Connect (Health Connect's data view on the
-phone). If it does: a small Android app reads it and posts nightly values to the Pi.
+**5. Ring HRV (started)**
+RingConn's own data export has daily HRV, so no Android app for now: import the export's Vital Signs
+CSV (dashboard upload or `heartwatch ringconn`), draw the HRV chart, and adjust training capacity
+once there is a baseline. The normal range leaves out the current week, so a bad week can't lower it.
+Still manual: each export has to be imported by hand. Later: a Dropbox folder for exports, or the
+Health Connect app if overnight HRV turns out to be worth it.
 
 ## Decisions
 

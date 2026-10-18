@@ -17,7 +17,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from . import db, dropbox, load, settings, store
 from .config import Config
@@ -26,6 +26,9 @@ log = logging.getLogger(__name__)
 
 SPORTS = ("run", "strength", "other")
 WORKOUT_PATH = re.compile(r"/api/workouts/(\d+)/sport")
+UPLOAD_TYPES = ("application/zip", "application/x-zip-compressed", "text/csv", "application/octet-stream")
+MAX_UPLOAD = 20 * 1024 * 1024
+SAFE_NAME = re.compile(r"[^A-Za-z0-9 ._()-]")
 
 
 def series_json(conn, cfg: Config, today: date | None = None) -> dict:
@@ -51,8 +54,11 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         if store.is_workout(w, cfg):
             sessions[sport][d] = sessions[sport].get(d, 0) + 1
     total = store.daily_loads(ws, cfg)
-    days = load.series(total, cfg, ws[0].start.date(), max(today, ws[-1].start.date()))
+    start, end = ws[0].start.date(), max(today, ws[-1].start.date())
+    hrv = load.hrv_series(store.hrv_readings(conn), cfg, start, end)
+    days = load.series(total, cfg, start, end, {h.day: h.adjust for h in hrv})
     r = lambda x: round(x, 2)
+    rn = lambda x: None if x is None else round(x, 1)
     out["days"] = [d.day.isoformat() for d in days]
     out.update({
         "fitness": [r(d.fitness) for d in days],
@@ -68,12 +74,33 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         "load": {s: {k: [r(getattr(per_sport[s].get(d.day, load.Load()), k)) for d in days]
                      for k in ("aerobic", "threshold", "anaerobic")} for s in SPORTS},
         "sessions": {s: [sessions[s].get(d.day, 0) for d in days] for s in SPORTS},
+        # Ring HRV, null where there is none; the normal range is base +- sd,
+        # drawn once a week of baseline days makes it more than noise.
+        "hrv": [rn(h.hrv) for h in hrv],
+        "hrv_week": [rn(h.week) for h in hrv],
+        "hrv_lo": [rn(h.base - h.sd) if h.sd is not None and h.baseline_days >= 7 else None for h in hrv],
+        "hrv_hi": [rn(h.base + h.sd) if h.sd is not None and h.baseline_days >= 7 else None for h in hrv],
+        "hrv_adjust": [r(h.adjust) for h in hrv],
+        "hrv_baseline_days": hrv[-1].baseline_days,
+        "hrv_min_baseline": load.HRV_MIN_BASELINE,
     })
     last = max((w for w in ws if store.is_workout(w, cfg)), key=lambda w: w.start, default=None)
     out["last_workout"] = last.start.isoformat(timespec="minutes") if last else None
     peak = max(ws, key=lambda w: w.peak_hr)
     out["peak_hr"] = {"bpm": peak.peak_hr, "date": peak.start.date().isoformat()}
+    out["ring"] = ring_json(conn, today)
     return out
+
+
+def ring_json(conn, today: date) -> dict | None:
+    v = store.vitals(conn)
+    if not v:
+        return None
+    lows = sorted(r["min_hr"] for d, r in v.items() if r["min_hr"] is not None and (today - d).days < 30)
+    return {"first": min(v).isoformat(), "last": max(v).isoformat(), "days": len(v),
+            "imported": max(r["imported"] for r in v.values()),
+            # The day's lowest heart rate, a guide to resting heart rate.
+            "min_hr_median": lows[len(lows) // 2] if lows else None}
 
 
 def workouts_json(conn, cfg: Config) -> list[dict]:
@@ -155,6 +182,8 @@ def make_handler(cfg: Config):
 
         def do_POST(self):
             path = urlparse(self.path).path
+            if path == "/api/ringconn":
+                return self._ringconn()
             # Requiring JSON forces a CORS preflight for cross-site requests, which we
             # never approve, so other websites can't change anything via your browser.
             if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
@@ -191,6 +220,25 @@ def make_handler(cfg: Config):
                 return self._json({"ok": True})
             finally:
                 conn.close()
+
+        def _ringconn(self):
+            # A zip or CSV body, never a form: those content types also need a CORS
+            # preflight, so other websites can't upload through your browser either.
+            if self.headers.get("Content-Type", "").split(";")[0] not in UPLOAD_TYPES:
+                return self._json({"error": "expected a RingConn export (.zip or .csv)"}, 415)
+            size = int(self.headers.get("Content-Length", 0))
+            if not 0 < size <= MAX_UPLOAD:
+                return self._json({"error": "file is empty or too big"}, 413)
+            data = self.rfile.read(size)
+            name = SAFE_NAME.sub("_", Path(unquote(self.headers.get("X-Filename", "")) or "ringconn-export.zip").name)[:120]
+            conn = db.connect(cfg.db_path)
+            try:
+                days = store.import_ringconn(conn, cfg, name, data)
+            except (ValueError, UnicodeDecodeError) as e:
+                return self._json({"error": f"Couldn't read that file: {e}"}, 400)
+            finally:
+                conn.close()
+            return self._json({"ok": True, "days": len(days), "first": days[0].day.isoformat(), "last": days[-1].day.isoformat()})
 
         def _poll(self):
             if not cfg.dropbox_app_key:

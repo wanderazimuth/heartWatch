@@ -45,6 +45,10 @@ class Config:
     anaerobic_days: float = 18
     fatigue_days: float = 7
 
+    # Training capacity moves by up to this much when your 7-day HRV is above
+    # or below your normal range (30-day average +- one standard deviation). 0: off.
+    hrv_adjust_max: float = 12
+
     # Hard work tires you more than its load suggests.
     threshold_fatigue: float = 1.4
     anaerobic_fatigue: float = 2.0

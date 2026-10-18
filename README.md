@@ -73,6 +73,26 @@ HeartWatch reads them from there once a day, and on demand with `heartwatch poll
 5. `heartwatch dropbox-ls /Apps` shows where the Wahoo files are; set `dropbox_folder` if it isn't
    `/Apps/WahooFitness`. Then `heartwatch poll`.
 
+## RingConn HRV
+
+Export your data in the RingConn app (any date range) and import the zip, either with
+**Import an export…** on the Imports page or:
+
+```
+.venv\Scripts\python -m heartwatch --config config.toml ringconn "Data Export-*.zip"
+```
+
+HeartWatch reads the Vital Signs file: one row per day with heart rate, SpO2 and HRV. Exports can
+overlap; a later export of the same day replaces it, and every export is archived.
+
+The HRV chart shows each day, the 7-day average and your normal range: the average of the 30 days
+before the current week, plus or minus one standard deviation. Once 21 of those 30 days have ring
+data, training capacity moves by up to `hrv_adjust_max` points (default 12, 0 turns it off): a 7-day
+average two standard deviations above normal adds the full amount, two below takes it away.
+
+RingConn's export gives a whole-day HRV average, not an overnight one, so workouts and stressful days
+pull it down too.
+
 ## On the Pi
 
 From Git Bash on Windows, commit, then:

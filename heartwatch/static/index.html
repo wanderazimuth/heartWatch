@@ -125,7 +125,7 @@
         <div class="card"><div class="k">Training capacity</div><div class="v" id="c-tc"></div><div class="t" id="c-tc-t"></div></div>
         <div class="card"><div class="k">Long-term load</div><div class="v" style="color:var(--ltl)" id="c-ltl"></div><div class="t" id="c-ltl-t"></div></div>
         <div class="card"><div class="k">Short-term load</div><div class="v" style="color:var(--stl)" id="c-stl"></div><div class="t" id="c-stl-t"></div></div>
-        <div class="card"><div class="k">Overnight HRV</div><div class="v"><small>not yet</small></div><div class="t">Comes with the RingConn connection. Until then Training Capacity has no HRV adjustment.</div></div>
+        <div class="card"><div class="k">HRV</div><div class="v" id="c-hrv"></div><div class="t" id="c-hrv-t"></div></div>
       </div>
 
       <section class="panel">
@@ -166,8 +166,27 @@
       </section>
 
       <section class="panel">
-        <h2>Overnight HRV <small>from the RingConn ring</small></h2>
-        <div class="empty">No ring data yet. This chart fills in once the RingConn connection is built (phase 5 of the plan).</div>
+        <div class="head">
+          <h2>HRV <small>daily average from the RingConn ring</small></h2>
+          <div class="legend">
+            <span><i class="sw" style="height:2px;background:var(--soft)"></i>Each day</span>
+            <span><i class="sw" style="height:4px;background:var(--text)"></i>7-day average</span>
+            <span><i class="box" style="background:color-mix(in srgb, var(--fresh) 22%, transparent)"></i>Your normal range</span>
+          </div>
+        </div>
+        <div id="h-chart">
+          <div class="chart">
+            <div class="axis" style="height:200px" id="h-axis"></div>
+            <div class="plot"><div style="height:200px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Daily HRV, its 7-day average, and your normal range">
+              <path id="h-band" fill="var(--fresh)" fill-opacity=".18"/>
+              <path id="h-day" fill="none" stroke="var(--soft)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+              <path id="h-week" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+            </svg></div></div>
+          </div>
+          <div class="xlabels nr" id="h-x"></div>
+        </div>
+        <div class="empty" id="h-empty" hidden></div>
+        <div class="t" id="h-text"></div>
       </section>
       <div class="note" id="f-note"></div>
     </div>
@@ -223,6 +242,14 @@
         <div class="t" id="i-dropbox"></div>
       </section>
       <section class="panel">
+        <div class="head"><h2>RingConn</h2>
+          <input type="file" id="r-file" accept=".zip,.csv" hidden>
+          <button type="button" class="primary" id="r-pick">Import an export…</button>
+        </div>
+        <div class="t" id="i-ring"></div>
+        <div class="t">In the RingConn app, export your data (any date range; overlapping exports are fine, the newer one wins) and choose the zip here. HeartWatch reads the Vital Signs file: daily HRV and heart rate.</div>
+      </section>
+      <section class="panel">
         <div class="head"><h2>Settings <small>saved here, overriding config.toml</small></h2>
           <div style="display:flex;gap:8px"><button type="button" id="s-reset">Reset to config.toml</button><button type="button" class="primary" id="s-save" disabled>Save</button></div>
         </div>
@@ -258,13 +285,14 @@ const STATES = {
 };
 const SPORT_NAMES = { run: "Run", strength: "Dumbbells", other: "Other" };
 const KNOBS = [
-  ["resting_hr", "Resting heart rate", 1, "bpm", "From the ring later; for now your own number."],
+  ["resting_hr", "Resting heart rate", 1, "bpm", "Your heart rate at rest."],
   ["max_hr", "Max heart rate", 1, "bpm", "Raise it when a workout goes higher."],
   ["fitness_days", "Fitness score smoothing", 3, "d", "How slowly the fitness score follows long-term load."],
   ["aerobic_days", "Long-term load: aerobic", 5, "d", "Zones 1–2."],
   ["threshold_days", "Long-term load: threshold", 5, "d", "Zones 3–4."],
   ["anaerobic_days", "Long-term load: anaerobic", 2, "d", "Zone 5."],
   ["fatigue_days", "Short-term load (fatigue)", 1, "d", "How long a hard session counts as fatigue."],
+  ["hrv_adjust_max", "HRV adjustment", 1, "pts", "The most HRV can move training capacity, either way. 0 turns it off."],
 ];
 const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
             settings: null, draft: null, showAll: false, rows: 100 };
@@ -345,7 +373,12 @@ function renderFitness() {
   const tc = Math.round(d.capacity[t]);
   $("c-tc").textContent = sign(tc);
   $("c-tc").style.color = tc > 3 ? "var(--fresh)" : tc < -3 ? "var(--tired)" : "";
-  $("c-tc-t").textContent = "Long-term minus short-term load. No HRV adjustment until the ring is connected.";
+  const adj = Math.round(d.hrv_adjust[t]);
+  $("c-tc-t").textContent = adj ? `Long-term minus short-term load, with ${sign(adj)} from your HRV.`
+    : !d.ring ? "Long-term minus short-term load. No HRV adjustment until ring data is imported."
+    : d.hrv_baseline_days < d.hrv_min_baseline ? `Long-term minus short-term load. No HRV adjustment until there are ${d.hrv_min_baseline} days of ring data to learn your normal range (${d.hrv_baseline_days} so far).`
+    : "Long-term minus short-term load. HRV is normal: no adjustment.";
+  renderHrv(lo, hi, span, t);
   $("c-ltl").textContent = Math.round(d.ltl[t]);
   $("c-ltl-t").textContent = pct(d.ltl[t], d.ltl[back]) + ` Aerobic ${Math.round(d.ltl_aerobic[t])}, threshold ${Math.round(d.ltl_threshold[t])}, anaerobic ${Math.round(d.ltl_anaerobic[t])}.`;
   $("c-stl").textContent = Math.round(d.stl[t]);
@@ -395,7 +428,70 @@ function renderFitness() {
   const s = d.settings;
   $("f-note").textContent = `Load is scored from heart rate alone (TRIMP, using heart rate reserve: resting ${s.resting_hr}, max ${s.max_hr}, zone 2 = ${d.zones[1][0]}–${d.zones[1][1]} bpm). `
     + `Short-term load averages over ${s.fatigue_days} days; long-term load over ${s.aerobic_days} days for aerobic work, ${s.threshold_days} for threshold and ${s.anaerobic_days} for anaerobic. `
-    + `Fitness score is long-term load smoothed again over ${s.fitness_days} days. Training capacity = long-term load − short-term load.`;
+    + `Fitness score is long-term load smoothed again over ${s.fitness_days} days. Training capacity = long-term load − short-term load + HRV adjustment (up to ±${s.hrv_adjust_max}).`;
+}
+
+// Averages over groups of days like points(), skipping days without a reading.
+function hrvPoints(lo, hi, span) {
+  const b = Math.ceil(span / 120), keys = ["hrv", "hrv_week", "hrv_lo", "hrv_hi"], out = [];
+  for (let i = lo; i < hi; i += b) {
+    const p = {};
+    for (const k of keys) {
+      const xs = S.data[k].slice(i, Math.min(i + b, hi)).filter((v) => v !== null);
+      p[k] = xs.length ? avg(xs) : null;
+    }
+    out.push(p);
+  }
+  return out;
+}
+// An SVG path through the non-null values, broken where days are missing.
+function gapLine(vals, y) {
+  let path = "", pen = false;
+  vals.forEach((v, i) => {
+    if (v === null) { pen = false; return; }
+    path += (pen ? "L" : "M") + X(i, vals.length) + " " + y(v).toFixed(1);
+    pen = true;
+  });
+  return path;
+}
+function gapBand(lows, highs, y) {
+  let path = "", run = [];
+  const flush = () => {
+    if (run.length > 1) path += "M" + run.map((i) => X(i, lows.length) + " " + y(highs[i]).toFixed(1)).join("L")
+      + "L" + run.slice().reverse().map((i) => X(i, lows.length) + " " + y(lows[i]).toFixed(1)).join("L") + "Z";
+    run = [];
+  };
+  lows.forEach((v, i) => { if (v === null || highs[i] === null) flush(); else run.push(i); });
+  flush();
+  return path;
+}
+
+function renderHrv(lo, hi, span, t) {
+  const d = S.data, pts = hrvPoints(lo, hi, span);
+  const any = pts.some((p) => p.hrv !== null || p.hrv_week !== null);
+  // The latest 7-day average, even if this week has too few ring days for one yet.
+  let k = t;
+  while (k > 0 && d.hrv_week[k] === null) k--;
+  const week = d.hrv_week[k], low = d.hrv_lo[t], high = d.hrv_hi[t];
+  $("c-hrv").innerHTML = week !== null ? `${Math.round(week)} <small>ms</small>` : "<small>not yet</small>";
+  $("c-hrv-t").textContent = (!d.ring ? "Import a RingConn export on the Imports page."
+    : week === null ? "Needs 4 days of ring data in a week."
+    : (k < t ? `7-day average to ${fmtDay(d.days[k])}; this week has under 4 ring days so far.` : "7-day average.")
+      + (d.hrv_baseline_days < d.hrv_min_baseline ? ` Still learning your normal range: ${d.hrv_baseline_days} of ${d.hrv_min_baseline} days.`
+         : low !== null ? ` Your normal is ${Math.round(low)}–${Math.round(high)} ms.` : ""));
+  $("h-chart").hidden = !any; $("h-empty").hidden = any;
+  $("h-empty").textContent = d.ring ? "No ring data in this time range." : "No ring data yet. Import a RingConn export on the Imports page.";
+  $("h-text").textContent = `When your 7-day HRV is above your normal range, training capacity gets up to ${d.settings.hrv_adjust_max} points added; below it, up to ${d.settings.hrv_adjust_max} taken away.`
+    + ` Your normal range comes from the 30 days before the current week, and the adjustment starts once ${d.hrv_min_baseline} of those have ring data. RingConn exports a whole-day average, so a hard workout or a stressful day pulls it down too.`;
+  if (!any) return;
+  const vals = pts.flatMap((p) => [p.hrv, p.hrv_week, p.hrv_lo, p.hrv_hi]).filter((v) => v !== null);
+  const a = Math.floor(Math.min(...vals) - 2), b = Math.ceil(Math.max(...vals) + 2);
+  const y = (v) => 280 - (v - a) / (b - a) * 260;
+  $("h-axis").innerHTML = `<span style="top:6.7%">${b}</span><span style="top:93.3%">${a}</span>`;
+  $("h-band").setAttribute("d", gapBand(pts.map((p) => p.hrv_lo), pts.map((p) => p.hrv_hi), y));
+  $("h-day").setAttribute("d", gapLine(pts.map((p) => p.hrv), y));
+  $("h-week").setAttribute("d", gapLine(pts.map((p) => p.hrv_week), y));
+  xLabels($("h-x"), lo, hi, span);
 }
 
 function renderTrends() {
@@ -465,6 +561,10 @@ function renderImports() {
   $("i-dropbox").innerHTML = !d ? "" : !d.dropbox
     ? "Not connected yet. Follow the Dropbox steps in the README, then the Update button fetches new workouts."
     : `Checked once a day, and whenever you press Update. Last checked: ${polled || "never"}.`;
+  const ring = d && d.ring;
+  $("i-ring").textContent = !ring ? "No ring data imported yet."
+    : `${ring.days} days of ring data, ${fmtDay(ring.first)} to ${fmtDay(ring.last)}. Last import ${new Date(ring.imported * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.`
+      + (ring.min_hr_median ? ` Lowest heart rate of the day, middle value over the last 30 days: ${Math.round(ring.min_hr_median)} bpm.` : "");
 
   if (S.settings) {
     const v = S.draft, def = S.settings.defaults;
@@ -543,6 +643,20 @@ $("s-save").onclick = async () => {
 $("s-reset").onclick = async () => {
   try { await api("/api/settings", {}); toast("Back to the config.toml settings."); await refresh(true); }
   catch (e) { toast(e.message); }
+};
+$("r-pick").onclick = () => $("r-file").click();
+$("r-file").onchange = async (e) => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  try {
+    const r = await fetch("/api/ringconn", { method: "POST", body: f,
+      headers: { "Content-Type": f.name.toLowerCase().endsWith(".csv") ? "text/csv" : "application/zip", "X-Filename": encodeURIComponent(f.name) } });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    toast(`${data.days} days of ring data imported, ${fmtDay(data.first)} to ${fmtDay(data.last)}.`);
+    await refresh(true);
+  } catch (err) { toast(err.message); }
 };
 $("update").onclick = async () => {
   const b = $("update");

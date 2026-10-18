@@ -32,6 +32,15 @@ CREATE TABLE IF NOT EXISTS hr_hist (
     seconds REAL NOT NULL,
     PRIMARY KEY (workout_id, bpm)
 );
+
+-- One row per day from the ring's exports; a later export of the same day replaces it.
+CREATE TABLE IF NOT EXISTS vitals (
+    day TEXT PRIMARY KEY,            -- YYYY-MM-DD, local
+    avg_hr REAL, min_hr REAL, max_hr REAL,
+    spo2 REAL,
+    hrv REAL, hrv_min REAL, hrv_max REAL,  -- ms; the ring's daily average, min and max
+    imported INTEGER NOT NULL
+);
 """
 
 

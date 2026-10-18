@@ -120,3 +120,44 @@ def series(daily: dict[date, Load], cfg: Config, start: date, end: date,
         days.append(Day(d, load, Load(la, lt, ln), stl, fit, capacity, change, state_of(capacity, change)))
         d += timedelta(days=1)
     return days
+
+
+# HRV: today's 7-day average against your normal range, the average of the
+# 30 days before that week plus or minus one standard deviation. (The week
+# itself is left out, so a bad week can't drag "normal" down with it.) A week
+# above normal adds to training capacity, a week below takes away; two
+# standard deviations is the full amount.
+HRV_WEEK = 7
+HRV_BASELINE = 30
+HRV_MIN_WEEK = 4       # days with ring data needed in the last 7
+HRV_MIN_BASELINE = 21  # and in the 30 before that, before any adjustment
+
+
+@dataclass
+class HrvDay:
+    day: date
+    hrv: float | None        # that day's reading
+    week: float | None       # 7-day average
+    base: float | None       # average of the 30 days before the week
+    sd: float | None
+    adjust: float            # added to training capacity
+    baseline_days: int       # days with data in those 30
+
+
+def hrv_series(hrv: dict[date, float], cfg: Config, start: date, end: date) -> list[HrvDay]:
+    out = []
+    d = start
+    while d <= end:
+        week = [hrv[x] for x in (d - timedelta(days=i) for i in range(HRV_WEEK)) if x in hrv]
+        month = [hrv[x] for x in (d - timedelta(days=i) for i in range(HRV_WEEK, HRV_WEEK + HRV_BASELINE)) if x in hrv]
+        w = sum(week) / len(week) if len(week) >= HRV_MIN_WEEK else None
+        base = sd = None
+        adjust = 0.0
+        if len(month) >= 2:
+            base = sum(month) / len(month)
+            sd = math.sqrt(sum((x - base) ** 2 for x in month) / (len(month) - 1))
+        if w is not None and sd and len(month) >= HRV_MIN_BASELINE:
+            adjust = max(-cfg.hrv_adjust_max, min(cfg.hrv_adjust_max, (w - base) / sd * cfg.hrv_adjust_max / 2))
+        out.append(HrvDay(d, hrv.get(d), w, base, sd, adjust, len(month)))
+        d += timedelta(days=1)
+    return out

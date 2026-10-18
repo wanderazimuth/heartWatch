@@ -38,12 +38,19 @@ def cmd_summary(cfg: config_mod.Config, args) -> None:
         print("No workouts imported yet.")
         return
     today = date.today()
-    days = load.series(store.daily_loads(ws, cfg), cfg, ws[0].start.date(), today)
-    d = days[-1]
+    hrv = load.hrv_series(store.hrv_readings(conn), cfg, ws[0].start.date(), today)
+    days = load.series(store.daily_loads(ws, cfg), cfg, ws[0].start.date(), today, {h.day: h.adjust for h in hrv})
+    d, h = days[-1], hrv[-1]
     lt = d.long_term
     print(f"Today, {today:%a %b %d %Y}: {d.state}")
     print(f"  Fitness score      {d.fitness:5.0f}   ({fmt_change((d.fitness - days[-29].fitness) / days[-29].fitness if len(days) > 28 and days[-29].fitness else 0)})")
-    print(f"  Training capacity  {d.capacity:+5.0f}   (no HRV adjustment yet)")
+    if h.adjust:
+        hrv_note = f"HRV {h.adjust:+.0f}: 7-day {h.week:.0f} ms, normal {h.base - h.sd:.0f}-{h.base + h.sd:.0f}"
+    elif h.baseline_days < load.HRV_MIN_BASELINE:
+        hrv_note = f"no HRV adjustment until {load.HRV_MIN_BASELINE} days of ring data; {h.baseline_days} so far"
+    else:
+        hrv_note = "HRV normal, no adjustment"
+    print(f"  Training capacity  {d.capacity:+5.0f}   ({hrv_note})")
     print(f"  Long-term load     {d.ltl:5.0f}   = aerobic {lt.aerobic:.0f} + threshold {lt.threshold:.0f}"
           f" + anaerobic {lt.anaerobic:.0f}, {fmt_change(d.change)}")
     print(f"  Short-term load    {d.short_term:5.0f}")
@@ -90,6 +97,18 @@ def cmd_takeout(cfg: config_mod.Config, args) -> None:
         if key == "added" and args.verbose:
             print(f"added      {result.name}  ({session.sport})")
     print(", ".join(f"{n} {k}" for k, n in counts.items()))
+
+
+def cmd_ringconn(cfg: config_mod.Config, args) -> None:
+    conn = db.connect(cfg.db_path)
+    for path in args.paths:
+        p = Path(path)
+        try:
+            days = store.import_ringconn(conn, cfg, p.name, p.read_bytes())
+        except ValueError as e:
+            print(f"FAILED     {p.name}: {e}")
+            continue
+        print(f"{len(days):3d} days   {days[0].day} to {days[-1].day}  {p.name}")
 
 
 def dropbox_client(cfg: config_mod.Config) -> dropbox.Client:
@@ -185,6 +204,8 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--all", action="store_true", help=f"include strap leftovers under {MIN_ACTIVE_MINUTES} active minutes")
     p = sub.add_parser("takeout", help="backfill Wahoo heart rate from Google Takeout zips")
     p.add_argument("zips", nargs="+")
+    p = sub.add_parser("ringconn", help="import RingConn data exports (zip or Vital Signs CSV)")
+    p.add_argument("paths", nargs="+")
     sub.add_parser("dropbox-login", help="connect HeartWatch to your Dropbox (once)")
     p = sub.add_parser("dropbox-ls", help="list a Dropbox folder")
     p.add_argument("path", nargs="?", default="")
@@ -204,7 +225,7 @@ def main(argv: list[str] | None = None) -> None:
         conn = db.connect(cfg.db_path)
         cfg = settings.effective(cfg, conn)
         conn.close()
-    commands = {"import": cmd_import, "summary": cmd_summary, "workouts": cmd_workouts, "takeout": cmd_takeout,
+    commands = {"import": cmd_import, "summary": cmd_summary, "workouts": cmd_workouts, "takeout": cmd_takeout, "ringconn": cmd_ringconn,
                 "dropbox-login": cmd_dropbox_login, "dropbox-ls": cmd_dropbox_ls, "poll": cmd_poll,
                 "gaps": cmd_gaps, "rebuild": cmd_rebuild, "backup": cmd_backup, "web": cmd_web}
     commands[args.cmd](cfg, args)
