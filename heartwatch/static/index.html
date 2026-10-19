@@ -534,9 +534,17 @@ function renderRing(lo, hi, span, t) {
   // The latest 7-day average, even if this week has too few ring days for one yet.
   let k = t;
   while (k > 0 && d.rhr_week[k] === null) k--;
-  const week = d.rhr_week[k], low = d.rhr_lo[t], high = d.rhr_hi[t];
+  // The normal range for the same week as the average, so the two compare like for like.
+  const week = d.rhr_week[k], low = d.rhr_lo[k], high = d.rhr_hi[k];
   const sleep = d.phone.last_sleep;
-  $("c-rhr").innerHTML = week !== null ? `${Math.round(week)} <small>bpm</small>` : "<small>not yet</small>";
+  // The difference from the middle of your normal range: green below the range (rested), orange above it (run down).
+  let delta = "";
+  if (week !== null && low !== null) {
+    const diff = Math.round(week - (low + high) / 2);
+    const colour = week < low ? "var(--fresh)" : week > high ? "var(--tired)" : "var(--muted)";
+    delta = ` <small style="color:${colour}" title="Compared with the middle of your normal range, ${Math.round(low)}–${Math.round(high)} bpm">${diff ? sign(diff) : "±0"}</small>`;
+  }
+  $("c-rhr").innerHTML = week !== null ? `${Math.round(week)} <small>bpm</small>${delta}` : "<small>not yet</small>";
   $("c-rhr-t").textContent = (!d.phone.last_rhr_day ? "Comes from the ring through Health Connect on your phone (see the Imports page)."
     : week === null ? "Needs 4 days of ring data in a week."
     : (k < t ? `7-day average to ${fmtDay(d.days[k])}; this week has under 4 ring days so far.` : "7-day average.")
