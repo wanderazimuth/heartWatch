@@ -418,9 +418,11 @@ function renderFitness() {
   $("c-fit").textContent = Math.round(d.fitness[t]);
   $("c-fit-t").textContent = pct(d.fitness[t], d.fitness[back]) + ` Long-term load smoothed over ${d.settings.fitness_days} days.`;
   const tc = Math.round(d.capacity[t]);
-  $("c-tc").textContent = sign(tc);
-  $("c-tc").style.color = tc > 3 ? "var(--fresh)" : tc < -3 ? "var(--tired)" : "";
   const adj = Math.round(d.readiness_adjust[t]);
+  // A note only when resting heart rate is moving capacity, so a bare number means "training balance only".
+  const note = adj ? ` <small style="color:${adj > 0 ? "var(--fresh)" : "var(--tired)"}" title="${sign(adj)} from your resting heart rate">♥ ${sign(adj)}</small>` : "";
+  $("c-tc").innerHTML = sign(tc) + note;
+  $("c-tc").style.color = tc > 3 ? "var(--fresh)" : tc < -3 ? "var(--tired)" : "";
   $("c-tc-t").textContent = adj ? `Long-term minus short-term load, with ${sign(adj)} from your resting heart rate.`
     : !d.phone.last_rhr_day ? "Long-term minus short-term load. No resting-heart-rate adjustment until the phone sends ring data."
     : d.rhr_baseline_days < d.min_baseline ? `Long-term minus short-term load. No adjustment until there are ${d.min_baseline} days of resting heart rate to learn your normal range (${d.rhr_baseline_days} so far).`
