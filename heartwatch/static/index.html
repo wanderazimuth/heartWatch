@@ -88,6 +88,18 @@
   .knob .val { font-weight: 800; font-size: 21px; min-width: 70px; text-align: center; }
   .knob.changed { border-color: var(--link); }
   .zones { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); }
+  /* Compact tiles: just the name and number; "Details" brings the explanations back. */
+  .cards.compact { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+  .cards.compact .card { padding: 9px 12px; gap: 3px; border-radius: 10px; justify-content: space-between; }
+  .cards.compact .k { font-size: 10.5px; letter-spacing: .04em; }
+  .cards.compact .v { font-size: 22px !important; }
+  .cards.compact .v small { font-size: 12px; }
+  .cards.compact .t { display: none; }
+  .cards.compact .card.state { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; }
+  .cards.compact #c-state { font-size: 17px !important; }
+  .cards.compact #c-state-dot { width: 10px !important; height: 10px !important; }
+  button.details { min-height: 0; padding: 4px 6px; margin-left: 2px; border: 0; background: none; color: var(--link); font-size: inherit; }
+  @media (max-width: 600px) { h1 { font-size: 22px; } }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -114,12 +126,12 @@
   <section id="tab-fitness" hidden>
     <div style="display:flex;flex-direction:column;gap:18px">
       <div class="titlebar">
-        <div><h1>Fitness &amp; Training Capacity</h1><div class="sub" id="f-today"></div></div>
+        <div><h1>Fitness &amp; Training Capacity</h1><div class="sub"><span id="f-today"></span> <button type="button" class="details" aria-expanded="false">Details</button></div></div>
         <div class="pills" role="group" aria-label="Time range" id="f-ranges"></div>
       </div>
       <div class="notice" id="f-peak" hidden></div>
-      <div class="cards">
-        <div class="card"><div class="k">Fitness state</div>
+      <div class="cards compact">
+        <div class="card state"><div class="k">Fitness state</div>
           <div style="display:flex;align-items:center;gap:10px"><span id="c-state-dot" style="width:14px;height:14px;border-radius:50%"></span><span id="c-state" style="font-weight:800;font-size:25px"></span></div>
           <div class="t" id="c-state-t"></div></div>
         <div class="card"><div class="k">Fitness score</div><div class="v" id="c-fit"></div><div class="t" id="c-fit-t"></div></div>
@@ -221,10 +233,10 @@
   <section id="tab-trends" hidden>
     <div style="display:flex;flex-direction:column;gap:18px">
       <div class="titlebar">
-        <div><h1>Training Trends</h1><div class="sub">Long-term load by kind of effort</div></div>
+        <div><h1>Training Trends</h1><div class="sub">Long-term load by kind of effort <button type="button" class="details" aria-expanded="false">Details</button></div></div>
         <div class="pills" role="group" aria-label="Time range" id="t-ranges"></div>
       </div>
-      <div class="cards" id="t-dims"></div>
+      <div class="cards compact" id="t-dims"></div>
       <section class="panel">
         <div class="head"><h2>Long-term load by kind of effort</h2>
           <div class="legend"><span><i class="box" style="background:var(--aer)"></i>Aerobic base</span><span><i class="box" style="background:var(--thr)"></i>Threshold</span><span><i class="box" style="background:var(--ana)"></i>Anaerobic</span></div>
@@ -683,6 +695,16 @@ window.addEventListener("hashchange", () => {
   if (!["fitness", "trends", "imports"].includes(S.tab)) S.tab = "fitness";
   if (S.tab === "imports" && !S.workouts) refresh(true).catch((e) => toast(e.message)); else render();
 });
+function showDetails(on) {
+  document.querySelectorAll(".cards").forEach((el) => el.classList.toggle("compact", !on));
+  document.querySelectorAll("button.details").forEach((b) => {
+    b.textContent = on ? "Hide details" : "Details"; b.setAttribute("aria-expanded", on);
+  });
+  try { localStorage.setItem("hw-details", on ? "1" : ""); } catch {}
+}
+document.querySelectorAll("button.details").forEach((b) =>
+  b.onclick = () => showDetails(b.getAttribute("aria-expanded") !== "true"));
+try { showDetails(localStorage.getItem("hw-details") === "1"); } catch { showDetails(false); }
 $("toggle-loads").onclick = () => { S.showLoads = !S.showLoads; renderFitness(); };
 $("w-all").onchange = (e) => { S.showAll = e.target.checked; renderImports(); };
 $("w-more").onclick = () => { S.rows += 200; renderImports(); };
