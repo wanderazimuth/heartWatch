@@ -428,9 +428,15 @@ function renderFitness() {
     : d.rhr_baseline_days < d.min_baseline ? `Long-term minus short-term load. No adjustment until there are ${d.min_baseline} days of resting heart rate to learn your normal range (${d.rhr_baseline_days} so far).`
     : "Long-term minus short-term load. Resting heart rate is normal: no adjustment.";
   renderRing(lo, hi, span, t);
-  $("c-ltl").textContent = Math.round(d.ltl[t]);
+  // Grey on purpose: more load is neither good nor bad by itself; the state and capacity tiles judge it.
+  const trend = (now, then, when) => {
+    const c = then ? Math.round((now - then) / then * 100) : 0;
+    return c ? ` <small style="color:var(--muted)" title="${c > 0 ? "Up" : "Down"} ${Math.abs(c)}% from ${when}">${c > 0 ? "↑" : "↓"}${Math.abs(c)}%</small>` : "";
+  };
+  $("c-ltl").innerHTML = Math.round(d.ltl[t]) + trend(d.ltl[t], d.ltl[back], "4 weeks ago");
   $("c-ltl-t").textContent = pct(d.ltl[t], d.ltl[back]) + ` Aerobic ${Math.round(d.ltl_aerobic[t])}, threshold ${Math.round(d.ltl_threshold[t])}, anaerobic ${Math.round(d.ltl_anaerobic[t])}.`;
-  $("c-stl").textContent = Math.round(d.stl[t]);
+  // Short-term load turns over in about a week, so it's compared with a week ago.
+  $("c-stl").innerHTML = Math.round(d.stl[t]) + trend(d.stl[t], d.stl[Math.max(0, t - 7)], "a week ago");
   $("c-stl-t").textContent = `Your fatigue, averaged over about ${d.settings.fatigue_days} days.`;
 
   const peak = d.peak_hr;
