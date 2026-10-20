@@ -122,6 +122,8 @@
     </div>
   </header>
 
+  <div class="notice" id="ring-nudge" hidden>Ring data is behind. <button type="button" id="ring-open">Open RingConn</button></div>
+
   <!-- Fitness & Training Capacity -->
   <section id="tab-fitness" hidden>
     <div style="display:flex;flex-direction:column;gap:18px">
@@ -281,6 +283,7 @@
       <section class="panel">
         <h2>Phone (Health Connect)</h2>
         <div class="t" id="i-phone"></div>
+        <label class="t" id="ring-auto-row" hidden><input type="checkbox" id="ring-auto"> On this phone, open RingConn when this page loads and the ring data is behind, so the ring syncs to Health Connect.</label>
       </section>
       <section class="panel">
         <div class="head"><h2>RingConn exports <small>HRV, by hand</small></h2>
@@ -639,6 +642,8 @@ function renderImports() {
     : !ph.last_received ? "Waiting for the phone's first sync. The HC Webhook app sends daily resting heart rate and sleep from the ring."
     : `Last sync ${new Date(ph.last_received * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`
       + (ph.last_rhr_day ? ` Latest resting heart rate: ${fmtDay(ph.last_rhr_day)}.` : "") + (ph.last_sleep ? ` Latest sleep: ${fmtDay(ph.last_sleep.day)}.` : "");
+  $("ring-auto-row").hidden = !isAndroid || ringPref() === "missing" || !(ph && ph.configured);
+  $("ring-auto").checked = !ringPref();
   const ring = d && d.ring;
   $("i-ring").textContent = !ring ? "No ring data imported yet."
     : `${ring.days} days of ring data, ${fmtDay(ring.first)} to ${fmtDay(ring.last)}. Last import ${new Date(ring.imported * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.`
@@ -699,11 +704,45 @@ function render() {
   if (S.tab === "imports") renderImports();
 }
 
+// RingConn only hands the ring's nights to Health Connect after its app has synced with the
+// ring, so on an Android phone with RingConn this page opens it when the latest night is missing.
+// Anywhere else (no Android, no RingConn) it does nothing: Chrome follows the fallback URL back
+// here with ?noring, and this device stops trying.
+const RING_PACKAGE = "com.gdjztech.ringconn";
+const ringPref = (v) => { try { if (v !== undefined) localStorage.setItem("hw-ring", v); return localStorage.getItem("hw-ring") || ""; } catch { return "off"; } };
+const isAndroid = /Android/i.test(navigator.userAgent);
+function ringIntent() {
+  const back = location.origin + location.pathname + "?noring=1" + location.hash;
+  return `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${RING_PACKAGE};`
+    + `S.browser_fallback_url=${encodeURIComponent(back)};end`;
+}
+function ringBehind(d) {
+  const ph = d.phone;
+  // A night's reading is filed under the morning it ends, so today's is the one to expect.
+  return ph && ph.configured && (!ph.last_rhr_day || ph.last_rhr_day < new Date().toLocaleDateString("en-CA"));
+}
+function maybeOpenRing(d) {
+  if (new URLSearchParams(location.search).has("noring")) {
+    ringPref("missing");
+    history.replaceState(null, "", location.pathname + location.hash);
+  }
+  $("ring-nudge").hidden = true;
+  if (!isAndroid || ringPref() || !ringBehind(d)) return;
+  // At most once an hour, so coming back from RingConn doesn't bounce straight there again.
+  let last = 0;
+  try { last = Number(localStorage.getItem("hw-ring-opened")) || 0; localStorage.setItem("hw-ring-opened", Date.now()); } catch {}
+  if (Date.now() - last < 3600e3) return;
+  location.href = ringIntent();
+  // Chrome may refuse to open an app without a tap; if the page is still showing, offer one.
+  setTimeout(() => { if (document.visibilityState === "visible") $("ring-nudge").hidden = false; }, 2000);
+}
+
 async function refresh(withWorkouts) {
   const [data, set] = await Promise.all([api("/api/series"), api("/api/settings")]);
   S.data = data; S.settings = set; S.draft = { ...set.values };
   if (withWorkouts || S.tab === "imports") S.workouts = (await api("/api/workouts")).workouts;
   render();
+  if (!S.ringChecked) { S.ringChecked = true; maybeOpenRing(data); }
 }
 
 window.addEventListener("hashchange", () => {
@@ -732,6 +771,8 @@ $("s-reset").onclick = async () => {
   try { await api("/api/settings", {}); toast("Back to the config.toml settings."); await refresh(true); }
   catch (e) { toast(e.message); }
 };
+$("ring-open").onclick = () => { $("ring-nudge").hidden = true; location.href = ringIntent(); };
+$("ring-auto").onchange = (e) => ringPref(e.target.checked ? "" : "off");
 $("r-pick").onclick = () => $("r-file").click();
 $("r-file").onchange = async (e) => {
   const f = e.target.files[0];
