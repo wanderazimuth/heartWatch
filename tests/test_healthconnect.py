@@ -88,6 +88,18 @@ class ReceiveTest(unittest.TestCase):
         self.assertEqual(healthconnect.reload(self.conn, self.cfg), 2)
         self.assertEqual(healthconnect.resting_hr(self.conn), {date(2024, 3, 5): 52})
 
+    def test_keep_all(self):
+        body = {"steps": [{"count": 5}], "resting_heart_rate": [rhr(date(2024, 3, 4), 51)]}
+        self.send(body)
+        self.assertFalse(Path(self.cfg.archive_dir, "healthconnect-all").exists())
+        self.cfg.healthconnect_keep_all = True
+        self.send(body)
+        self.send({"test": True, "steps": [{"count": 5}]})
+        self.send({"steps": [{"count": 7}]})  # nothing HeartWatch uses, still kept whole
+        kept = sorted(Path(self.cfg.archive_dir, "healthconnect-all").rglob("*.json.gz"))
+        self.assertEqual([json.loads(gzip.decompress(p.read_bytes()))["steps"][0]["count"] for p in kept], [5, 7])
+        self.assertEqual(healthconnect.reload(self.conn, self.cfg), 2)
+
     def test_nothing_useful_is_not_archived(self):
         self.assertEqual(self.send({"timestamp": "x", "steps": [{"count": 5}]}).resting_hr, 0)
         self.assertFalse(Path(self.cfg.archive_dir, "healthconnect").exists())

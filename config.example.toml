@@ -32,6 +32,9 @@ readiness_adjust_max = 12
 # The phone's Health Connect app (HC Webhook) sends this in an X-HeartWatch-Key header. Make it
 # long and random; empty turns the endpoint off.
 healthconnect_key = ""
+# Keep every payload the phone sends whole (heart rate, steps, SpO2... whatever the app is
+# allowed to read) in the archive, for uses beyond HeartWatch. Off: only what HeartWatch uses.
+healthconnect_keep_all = false
 
 # Short-term load counts harder work extra.
 threshold_fatigue = 1.4

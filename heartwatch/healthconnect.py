@@ -4,7 +4,8 @@ An app on the phone (HC Webhook) posts what's new in Health Connect as JSON.
 HeartWatch keeps two kinds of record from it: resting heart rate (the ring
 writes about one a night) and sleep sessions. Each payload is archived with
 just those two kinds, so the records can be read again if this code changes;
-the rest (workout heart rate, steps, SpO2...) is dropped on arrival.
+the rest (workout heart rate, steps, SpO2...) is dropped, unless
+healthconnect_keep_all asks for the whole payload to be kept as well.
 """
 from __future__ import annotations
 
@@ -87,16 +88,23 @@ def receive(conn: sqlite3.Connection, cfg: Config, body: bytes) -> Received:
         # The app's Test button sends made-up sample records; they prove the
         # connection works but must not become readings.
         return Received(test=True)
+    now = time.time()
+    if cfg.healthconnect_keep_all and any(isinstance(v, list) and v for v in payload.values()):
+        # As sent, byte for byte: kept apart from the trimmed archive so reload() never reads it.
+        _write(Path(cfg.archive_dir) / "healthconnect-all", now, body)
     payload = _kept(payload)
     _records(payload)  # refuse a payload that can't be read before archiving it
     if not any(payload.get(k) for k in KEPT):
         return Received()
-    now = time.time()
-    dest = Path(cfg.archive_dir) / "healthconnect" / f"{datetime.fromtimestamp(now):%Y}" / f"{now:.3f}.json.gz"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(dest, "wt", encoding="utf-8") as f:
-        json.dump(payload, f)
+    _write(Path(cfg.archive_dir) / "healthconnect", now, json.dumps(payload).encode())
     return _store(conn, payload, int(now))
+
+
+def _write(folder: Path, now: float, data: bytes) -> None:
+    dest = folder / f"{datetime.fromtimestamp(now):%Y}" / f"{now:.3f}.json.gz"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(dest, "wb") as f:
+        f.write(data)
 
 
 def reload(conn: sqlite3.Connection, cfg: Config) -> int:

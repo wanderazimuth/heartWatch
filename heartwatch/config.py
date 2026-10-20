@@ -51,6 +51,9 @@ class Config:
     # Shared secret the phone's Health Connect app sends in the X-HeartWatch-Key
     # header. Empty: /api/healthconnect is off.
     healthconnect_key: str = ""
+    # Also keep every Health Connect payload exactly as the phone sent it, every data
+    # type included, under <archive_dir>/healthconnect-all (and so in the backup).
+    healthconnect_keep_all: bool = False
 
     # Hard work tires you more than its load suggests.
     threshold_fatigue: float = 1.4

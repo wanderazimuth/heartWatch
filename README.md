@@ -91,8 +91,12 @@ them to HeartWatch on a schedule, straight over your home Wi-Fi.
 5. Once, run a manual sync with a time range of the last 60 days, so HeartWatch has a baseline
    from the start. **Sync Now** and the app's Webhook Log show whether the Pi accepted it.
 
-HeartWatch keeps the ring's own records if other apps write the same type, archives every payload
-it receives, and turns the header's "Ring data" date red when nothing has arrived for 3 days.
+HeartWatch keeps the ring's own records if other apps write the same type, archives the resting
+heart rate and sleep from every payload, and turns the header's "Ring data" date red when nothing
+has arrived for 3 days. To keep everything the phone sends (for uses beyond HeartWatch), set
+`healthconnect_keep_all = true`: whole payloads then go to `archive/healthconnect-all`, and into
+the backup with the rest of the archive. Payloads over 20 MB are refused (413 in the app's log);
+sync shorter time ranges if full-detail heart rate makes them that big.
 
 **Readiness.** The 7-day average resting heart rate is compared with your normal range: the
 average of the 30 days before the current week, plus or minus one standard deviation. Once 21 of
