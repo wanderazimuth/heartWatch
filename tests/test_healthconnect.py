@@ -100,6 +100,21 @@ class ReceiveTest(unittest.TestCase):
         self.assertEqual([json.loads(gzip.decompress(p.read_bytes()))["steps"][0]["count"] for p in kept], [5, 7])
         self.assertEqual(healthconnect.reload(self.conn, self.cfg), 2)
 
+    def test_staged_night(self):
+        # Full sleep detail: the whole night as stage 2 ("sleeping"), then each stage as its own
+        # session with Health Connect's number. Time asleep is light + deep + REM.
+        end = datetime(2024, 3, 5, 6, 30, tzinfo=TZ)
+        def piece(stage, secs, back):
+            e = end - timedelta(seconds=back)
+            return {"session_end_time": e.isoformat(), "duration_seconds": secs, "metadata": {"data_origin": RING},
+                    "stages": [{"stage": stage, "start_time": (e - timedelta(seconds=secs)).isoformat(),
+                                "end_time": e.isoformat(), "duration_seconds": secs}]}
+        self.send({"sleep": [piece("2", 8 * 3600, 0), piece("4", 3 * 3600, 5 * 3600), piece("1", 3600, 4 * 3600),
+                             piece("5", 3600, 3 * 3600), piece("6", 2 * 3600, 3600), piece("7", 3600, 0)]})
+        self.assertEqual(healthconnect.sleep(self.conn), {date(2024, 3, 5): 6.0})
+        self.assertEqual([healthconnect._stage({"stage": s}) for s in ("4", "SLEEP_STAGE_DEEP", "rem", "Awake in bed", "9")],
+                         ["light", "deep", "rem", "awake_in_bed", "unknown"])
+
     def test_nothing_useful_is_not_archived(self):
         self.assertEqual(self.send({"timestamp": "x", "steps": [{"count": 5}]}).resting_hr, 0)
         self.assertFalse(Path(self.cfg.archive_dir, "healthconnect").exists())

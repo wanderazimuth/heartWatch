@@ -84,7 +84,8 @@ them to HeartWatch on a schedule, straight over your home Wi-Fi.
 2. Install HC Webhook on the phone. In Health Connect grant it only **Resting heart rate** and
    **Sleep**; it asks for every kind of health data, and needs none of the rest.
 3. Add a webhook: URL `http://<pi address>:8081/api/healthconnect?key=<key from step 1>`, format
-   JSON. Data types: resting heart rate and sleep. (An `X-HeartWatch-Key` header works too, but
+   JSON. Data types: resting heart rate and sleep, with sleep detail set to **full** (without it
+   the stages are left off, and broken nights read long). (An `X-HeartWatch-Key` header works too, but
    HC Webhook leaves custom headers off its manual syncs, so the key belongs in the URL.)
 4. Sync mode: **Scheduled**, at times you're usually home (say 08:00 and 21:00). Exclude the app
    from battery optimisation so Android doesn't stop it.

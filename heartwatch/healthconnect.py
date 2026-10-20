@@ -25,6 +25,22 @@ KEPT = ("resting_heart_rate", "sleep", "deleted")
 # RingConn stamps a night's resting heart rate anywhere from bedtime to waking,
 # so a reading belongs to the day that starts within 12 hours of it.
 DAY_SHIFT = timedelta(hours=12)
+# Health Connect's sleep stage numbers; HC Webhook sends them as numbers or names.
+STAGE_NAMES = {"0": "unknown", "1": "awake", "2": "sleeping", "3": "out_of_bed",
+               "4": "light", "5": "deep", "6": "rem", "7": "awake_in_bed"}
+AWAKE = {"awake", "out_of_bed", "awake_in_bed"}
+ASLEEP = {"light", "deep", "rem"}
+
+
+def _stage(s: dict) -> str:
+    """A stage's name, from a number ("4") or a name in any spelling ("SLEEP_STAGE_LIGHT")."""
+    raw = str(s.get("stage", "")).strip().lower()
+    if raw in STAGE_NAMES:
+        return STAGE_NAMES[raw]
+    for name in ("awake_in_bed", "out_of_bed", "awake", "light", "deep", "rem", "sleeping"):
+        if name in raw.replace(" ", "_"):
+            return name
+    return "unknown"
 
 
 @dataclass
@@ -56,8 +72,7 @@ def _records(payload: dict) -> list[tuple]:
         end = _instant(r["session_end_time"])
         start = end - int(r["duration_seconds"])
         # Time asleep: the session less any awake stages.
-        awake = sum(int(s.get("duration_seconds", 0)) for s in r.get("stages") or []
-                    if "awake" in str(s.get("stage", "")).lower() or "out_of_bed" in str(s.get("stage", "")).lower())
+        awake = sum(int(s.get("duration_seconds", 0)) for s in r.get("stages") or [] if _stage(s) in AWAKE)
         rows.append((meta.get("id") or f"sleep:{origin}:{start}:{end}", "sleep", start, end,
                      float(int(r["duration_seconds"]) - awake), origin, json.dumps(r.get("stages") or [])))
     return rows
@@ -134,14 +149,20 @@ def resting_hr(conn: sqlite3.Connection) -> dict[date, float]:
 def sleep(conn: sqlite3.Connection) -> dict[date, float]:
     """Hours asleep per night, keyed by the day the night ended.
 
-    The longest session of the night: RingConn writes the night as one session
-    and its stages again as separate, unlabelled short ones, so adding them up
-    would count the night twice."""
-    out: dict[date, float] = {}
+    RingConn writes the night as one session and then each stage again as its
+    own short session. With HC Webhook's sleep detail set to full those carry
+    their stage, and light + deep + REM is the time asleep (it matches the
+    RingConn app). Without stages, the longest session of the night stands in,
+    since adding the pieces up would count the night twice."""
+    staged: dict[date, float] = {}
+    longest: dict[date, float] = {}
     for r in _preferred(conn.execute("SELECT * FROM health_records WHERE type = 'sleep' ORDER BY end").fetchall()):
         d = datetime.fromtimestamp(r["end"]).date()
-        out[d] = max(out.get(d, 0), r["value"] / 3600)
-    return out
+        stages = json.loads(r["detail"] or "[]")
+        if len(stages) == 1 and _stage(stages[0]) in ASLEEP:
+            staged[d] = staged.get(d, 0) + r["value"] / 3600
+        longest[d] = max(longest.get(d, 0), r["value"] / 3600)
+    return longest | staged
 
 
 def last_received(conn: sqlite3.Connection) -> int | None:
