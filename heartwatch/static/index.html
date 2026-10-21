@@ -724,7 +724,7 @@ function renderMovement(lo, hi, span, t) {
     : brisk ? `${Math.round(now.brisk_minutes)} <small>min today</small>` : "<small>not yet</small>";
   const n = (v) => Math.round(v).toLocaleString("en-US");
   $("c-move-t").textContent = !now && week === null ? "Comes from the phone's step counts through Health Connect (see the Imports page)."
-    : (week !== null ? `Minutes a day at 100+ steps a minute, outside workouts: 7-day average to ${fmtDay(d.days[k])}.` : "Minutes at 100+ steps a minute, outside workouts.")
+    : (week !== null ? `Minutes a day at 100+ steps a minute, outside workouts: average of the ${k >= t - 1 ? "last 7 days" : `7 days to ${fmtDay(d.days[k])}`}, not counting today.` : "Minutes at 100+ steps a minute, outside workouts.")
       + (brisk ? ` Today so far: ${Math.round(now.brisk_minutes)} min in ${now.bursts} ${now.bursts === 1 ? "burst" : "bursts"}, ${n(now.steps)} steps.`
          : now ? ` Today: ${n(now.steps)} steps, from the ring only.` : "")
       + (steps !== null ? ` Steps: ${n(steps)} a day on average.` : "");
