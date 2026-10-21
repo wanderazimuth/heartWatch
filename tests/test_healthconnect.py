@@ -202,6 +202,10 @@ class EndpointTest(unittest.TestCase):
         self.assertEqual(d["rhr"][d["days"].index("2026-10-02")], 51)
         self.assertEqual(d["phone"]["last_rhr_day"], "2026-10-02")
         self.assertEqual(len(d["sleep_week"]), len(d["days"]))
+        # The 20-minute workout at 150 bpm, as minutes in one zone.
+        zones = [sum(col) for sport in d["zone_minutes"].values() for col in sport]
+        self.assertAlmostEqual(sum(zones), 20, delta=1)
+        self.assertEqual(sum(z > 0 for z in zones), 1)
         self.assertIsNone(d["phone"]["last_sleep"])
 
     def test_key_in_the_url(self):

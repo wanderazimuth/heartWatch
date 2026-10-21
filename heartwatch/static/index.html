@@ -296,6 +296,24 @@
         </div>
         <div class="xlabels nr" id="t-x2"></div>
       </section>
+      <section class="panel">
+        <div class="head">
+          <div><h2 id="z-title">Time in zone</h2><div class="t" id="z-sum"></div></div>
+          <div class="pills" role="group" aria-label="Zones" id="z-mode"></div>
+        </div>
+        <div class="legend" id="z-legend"></div>
+        <div class="chart">
+          <div class="axis" style="height:240px" id="z-axis"></div>
+          <div class="plot"><div style="height:240px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Minutes in each heart-rate zone per period, stacked">
+            <line x1="0" y1="20" x2="1000" y2="20" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+            <line x1="0" y1="155" x2="1000" y2="155" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+            <line x1="0" y1="290" x2="1000" y2="290" stroke="var(--border)" vector-effect="non-scaling-stroke"/>
+            <g id="z-bars"></g>
+          </svg></div></div>
+        </div>
+        <div class="xlabels nr" id="z-x"></div>
+        <div class="t" id="z-text"></div>
+      </section>
     </div>
   </section>
 
@@ -366,7 +384,10 @@ const KNOBS = [
   ["readiness_adjust_max", "Resting heart rate adjustment", 1, "pts", "The most resting heart rate can move training capacity, either way. 0 turns it off."],
 ];
 const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
-            settings: null, draft: null, showAll: false, rows: 100 };
+            settings: null, draft: null, showAll: false, rows: 100, zones: "3" };
+try { if (localStorage.getItem("hw-zones") === "5") S.zones = "5"; } catch {}
+// Below zone 1, then zones 1-5: the workout table's bars and the time-in-zone chart.
+const ZONE_COLOURS = ["#a3a9b3", "var(--aer)", "#2e8b57", "var(--thr)", "var(--tired)", "var(--risk)"];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v);
@@ -697,6 +718,39 @@ function renderTrends() {
   const count = (sp) => d.sessions[sp].slice(lo, hi).reduce((u, v) => u + v, 0);
   $("t-sessions").textContent = `${count("run")} runs and ${count("strength")} dumbbell sessions in this range` + (count("other") ? `, plus ${count("other")} untyped` : "");
   xLabels($("t-x2"), lo, hi, span);
+  renderZones(lo, hi, span, size, label, sports, axis);
+}
+
+// Time in zone: the same periods and workout types as the load bars, counted in minutes rather than load.
+// Three zones follow HeartWatch's own split (and the usual easy / in-between / hard model); five are the plain zones.
+function renderZones(lo, hi, span, size, label, sports, axis) {
+  const d = S.data;
+  pills($("z-mode"), [["3", "3 zones"], ["5", "5 zones"]], S.zones, (id) => {
+    S.zones = id;
+    try { localStorage.setItem("hw-zones", id); } catch {}
+    renderTrends();
+  });
+  const groups = S.zones === "5" ? ZONE_COLOURS.slice(1).map((c, z) => [`Zone ${z + 1}`, c, [z]])
+    : [["Easy, zones 1–2", "var(--aer)", [0, 1]], ["Moderate, zones 3–4", "var(--thr)", [2, 3]], ["Hard, zone 5", "var(--ana)", [4]]];
+  const mins = (zs, i, e) => sports.reduce((u, sp) => u + zs.reduce((v, z) => v + d.zone_minutes[sp][z].slice(i, e).reduce((a, b) => a + b, 0), 0), 0);
+  const sums = [];
+  for (let i = lo; i < hi; i += size) sums.push(groups.map(([, , zs]) => mins(zs, i, Math.min(i + size, hi))));
+  const zMax = nice(Math.max(1, ...sums.map((b) => b.reduce((u, v) => u + v, 0))) * 1.1, 10);
+  const bw = 1000 / sums.length, x = (i) => (i * bw + bw * 0.14).toFixed(1), w = (bw * 0.72).toFixed(1);
+  $("z-bars").innerHTML = groups.map(([name, c], g) => `<path fill="${c}" d="${sums.map((b, i) => {
+    const base = b.slice(0, g).reduce((u, v) => u + v, 0) / zMax * 270, h = b[g] / zMax * 270;
+    return h > 0 ? `M${x(i)} ${(290 - base - h).toFixed(1)}h${w}v${h.toFixed(1)}h-${w}Z` : "";
+  }).join("")}"><title>${name}</title></path>`).join("");
+  $("z-axis").innerHTML = axis(zMax);
+  $("z-title").textContent = `Time in zone, minutes ${label}`;
+  const totals = groups.map(([, , zs]) => mins(zs, lo, hi)), all = totals.reduce((u, v) => u + v, 0);
+  const pct = (m) => all ? Math.round(m / all * 100) + "%" : "–";
+  $("z-legend").innerHTML = groups.map(([name, c], g) => `<span><i class="box" style="background:${c}"></i>${name} <b>${pct(totals[g])}</b></span>`).join("");
+  $("z-sum").textContent = all ? `${hm(all / 60)} in zones 1–5 in this range.` : "No time in zones 1–5 in this range.";
+  xLabels($("z-x"), lo, hi, span);
+  $("z-text").textContent = "Time below zone 1 (warm-ups, rests between sets) is left out. "
+    + "In Seiler's studies, well-trained endurance athletes did about 80% of their training easy, counted in sessions rather than minutes as here. "
+    + "The zones are fixed percentages of heart-rate reserve, so where your own thresholds fall can shift a few minutes between neighbouring zones.";
 }
 
 function renderImports() {
@@ -737,7 +791,7 @@ function renderImports() {
   if (S.workouts) {
     const all = S.workouts.filter((w) => S.showAll || w.workout);
     $("w-count").textContent = `${S.workouts.filter((w) => w.workout).length} workouts`;
-    const zc = ["#a3a9b3", "var(--aer)", "#2e8b57", "var(--thr)", "var(--tired)", "var(--risk)"];
+    const zc = ZONE_COLOURS;
     const by = (w) => w.source === "takeout" ? "Google Fit backfill" : w.detail === "generic/exercise" ? "TICKR X" : "Wahoo app";
     $("w-rows").innerHTML = all.slice(0, S.rows).map((w) => {
       const zt = w.zone_minutes.slice(1).reduce((u, v) => u + v, 0) || 1;

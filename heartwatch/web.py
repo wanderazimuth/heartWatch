@@ -54,12 +54,17 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     today = today or date.today()
     per_sport: dict[str, dict[date, load.Load]] = {s: {} for s in SPORTS}
     sessions: dict[str, dict[date, int]] = {s: {} for s in SPORTS}
+    minutes: dict[str, dict[date, list[float]]] = {s: {} for s in SPORTS}  # per zone 1-5
     for w in ws:
         d, sport = w.start.date(), w.sport if w.sport in SPORTS else "other"
         per_sport[sport].setdefault(d, load.Load())
         per_sport[sport][d] += load.workout_load(w.hist, cfg)
         if store.is_workout(w, cfg):
             sessions[sport][d] = sessions[sport].get(d, 0) + 1
+        for bpm, secs in w.hist.items():
+            z = load.zone(bpm, cfg)
+            if z:  # below zone 1 is standing around, not training
+                minutes[sport].setdefault(d, [0.0] * 5)[z - 1] += secs / 60
     total = store.daily_loads(ws, cfg)
     start, end = ws[0].start.date(), max(today, ws[-1].start.date())
     rhr = load.readiness(healthconnect.resting_hr(conn), cfg, start, end)
@@ -84,6 +89,8 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         "load": {s: {k: [r(getattr(per_sport[s].get(d.day, load.Load()), k)) for d in days]
                      for k in ("aerobic", "threshold", "anaerobic")} for s in SPORTS},
         "sessions": {s: [sessions[s].get(d.day, 0) for d in days] for s in SPORTS},
+        # Minutes in zones 1-5 each day, per workout type, for the time-in-zone bars.
+        "zone_minutes": {s: [[round(minutes[s].get(d.day, [0.0] * 5)[z], 1) for d in days] for z in range(5)] for s in SPORTS},
         **baseline_json("rhr", rhr),
         **baseline_json("hrv", hrv),
         **baseline_json("sleep", slept, digits=2),
