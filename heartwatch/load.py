@@ -148,10 +148,14 @@ class Baseline:
 def baseline_series(readings: dict[date, float], start: date, end: date,
                     adjust_max: float = 0, higher_is_better: bool = True) -> list[Baseline]:
     out = []
+    # Readings by day, from the start of the first day's baseline: slices, not a lookup per day.
+    back = BASE_WEEK + BASE_DAYS - 1
+    vals = [readings.get(start + timedelta(days=i - back)) for i in range((end - start).days + 1 + back)]
     d = start
     while d <= end:
-        week = [readings[x] for x in (d - timedelta(days=i) for i in range(BASE_WEEK)) if x in readings]
-        month = [readings[x] for x in (d - timedelta(days=i) for i in range(BASE_WEEK, BASE_WEEK + BASE_DAYS)) if x in readings]
+        j = (d - start).days + back
+        week = [v for v in vals[j - BASE_WEEK + 1:j + 1] if v is not None]
+        month = [v for v in vals[j - back:j - BASE_WEEK + 1] if v is not None]
         w = sum(week) / len(week) if len(week) >= MIN_WEEK else None
         base = sd = None
         adjust = 0.0

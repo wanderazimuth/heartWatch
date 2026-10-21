@@ -70,7 +70,8 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     rhr = load.readiness(healthconnect.resting_hr(conn), cfg, start, end)
     hrv = load.baseline_series(store.hrv_readings(conn), start, end)
     # Shown with your normal range like HRV, and like HRV it doesn't change capacity.
-    slept = load.baseline_series(healthconnect.sleep(conn), start, end)
+    sleep = healthconnect.sleep(conn)
+    slept = load.baseline_series(sleep, start, end)
     # Today is still going, so the averages and ranges use finished days; the page shows today apart.
     moved = movement_days(conn, cfg, ws)
     done = {d: m for d, m in moved.items() if d < today}
@@ -110,7 +111,7 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     peak = max(ws, key=lambda w: w.peak_hr)
     out["peak_hr"] = {"bpm": peak.peak_hr, "date": peak.start.date().isoformat()}
     out["ring"] = ring_json(conn, today)
-    out["phone"] = phone_json(conn, cfg)
+    out["phone"] = phone_json(conn, cfg, sleep)
     now = moved.get(today)
     out["movement_today"] = None if now is None else {
         "steps": now.steps, "brisk_minutes": None if now.brisk_minutes is None else round(now.brisk_minutes, 1),
@@ -144,8 +145,9 @@ def baseline_json(key: str, series: list[load.Baseline], digits: int = 1) -> dic
     }
 
 
-def phone_json(conn, cfg: Config) -> dict:
-    rhr, sleep = healthconnect.resting_hr(conn), healthconnect.sleep(conn)
+def phone_json(conn, cfg: Config, sleep: dict[date, float] | None = None) -> dict:
+    rhr = healthconnect.resting_hr(conn)
+    sleep = healthconnect.sleep(conn) if sleep is None else sleep
     last = max(sleep) if sleep else None
     return {"last_received": healthconnect.last_received(conn),
             "last_rhr_day": max(rhr).isoformat() if rhr else None,
