@@ -119,6 +119,7 @@ class ReceiveTest(unittest.TestCase):
                "stages": [{"stage": "4", "duration_seconds": 1800}]}
         self.send({"sleep": [nap]})
         self.assertEqual(healthconnect.sleep(self.conn), {date(2024, 3, 5): 6.5})
+        self.assertEqual(healthconnect.sleep_stages(self.conn), {date(2024, 3, 5): {"light": 210, "deep": 60, "rem": 120}})
         self.assertEqual([healthconnect._stage({"stage": s}) for s in ("4", "SLEEP_STAGE_DEEP", "rem", "Awake in bed", "9")],
                          ["light", "deep", "rem", "awake_in_bed", "unknown"])
 
@@ -200,6 +201,8 @@ class EndpointTest(unittest.TestCase):
             d = json.load(r)
         self.assertEqual(d["rhr"][d["days"].index("2026-10-02")], 51)
         self.assertEqual(d["phone"]["last_rhr_day"], "2026-10-02")
+        self.assertEqual(len(d["sleep_week"]), len(d["days"]))
+        self.assertIsNone(d["phone"]["last_sleep"])
 
     def test_key_in_the_url(self):
         payload = {"resting_heart_rate": [rhr(date(2026, 10, 2), 51)]}

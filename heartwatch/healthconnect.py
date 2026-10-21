@@ -156,15 +156,31 @@ def sleep(conn: sqlite3.Connection) -> dict[date, float]:
     up: when RingConn re-analyses a night it writes the stages again without
     removing the old ones, so pieces overlap. Without stages, the longest
     session of the night stands in."""
-    asleep: dict[date, list[tuple[int, int]]] = {}
+    longest, staged = _nights(conn)
+    return longest | {d: _covered([s for spans in by.values() for s in spans]) / 3600 for d, by in staged.items()}
+
+
+def sleep_stages(conn: sqlite3.Connection) -> dict[date, dict[str, int]]:
+    """Minutes of light, deep and REM sleep per night, for nights sent with stages.
+
+    Each stage is counted once however many times RingConn rewrote it, so where
+    two versions of a night disagree the stages can add up to a few minutes more
+    than the time asleep."""
+    return {d: {s: round(_covered(by.get(s, [])) / 60) for s in ("light", "deep", "rem")}
+            for d, by in _nights(conn)[1].items()}
+
+
+def _nights(conn: sqlite3.Connection):
+    """Per night: the longest session in hours, and the spans of each asleep stage."""
     longest: dict[date, float] = {}
+    staged: dict[date, dict[str, list[tuple[int, int]]]] = {}
     for r in _preferred(conn.execute("SELECT * FROM health_records WHERE type = 'sleep' ORDER BY start").fetchall()):
         d = (datetime.fromtimestamp(r["start"]) + DAY_SHIFT).date()
         stages = json.loads(r["detail"] or "[]")
         if len(stages) == 1 and _stage(stages[0]) in ASLEEP:
-            asleep.setdefault(d, []).append((r["start"], r["end"]))
+            staged.setdefault(d, {}).setdefault(_stage(stages[0]), []).append((r["start"], r["end"]))
         longest[d] = max(longest.get(d, 0), r["value"] / 3600)
-    return longest | {d: _covered(spans) / 3600 for d, spans in asleep.items()}
+    return longest, staged
 
 
 def _covered(spans: list[tuple[int, int]]) -> int:

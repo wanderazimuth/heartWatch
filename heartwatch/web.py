@@ -64,6 +64,8 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     start, end = ws[0].start.date(), max(today, ws[-1].start.date())
     rhr = load.readiness(healthconnect.resting_hr(conn), cfg, start, end)
     hrv = load.baseline_series(store.hrv_readings(conn), start, end)
+    # Shown with your normal range like HRV, and like HRV it doesn't change capacity.
+    slept = load.baseline_series(healthconnect.sleep(conn), start, end)
     days = load.series(total, cfg, start, end, {b.day: b.adjust for b in rhr})
     r = lambda x: round(x, 2)
     rn = lambda x: None if x is None else round(x, 1)
@@ -84,6 +86,7 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         "sessions": {s: [sessions[s].get(d.day, 0) for d in days] for s in SPORTS},
         **baseline_json("rhr", rhr),
         **baseline_json("hrv", hrv),
+        **baseline_json("sleep", slept, digits=2),
         "readiness_adjust": [r(b.adjust) for b in rhr],
         "min_baseline": load.MIN_BASELINE,
     })
@@ -96,10 +99,10 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     return out
 
 
-def baseline_json(key: str, series: list[load.Baseline]) -> dict:
+def baseline_json(key: str, series: list[load.Baseline], digits: int = 1) -> dict:
     """A ring reading as columns, null where there is none. The normal range (base +- sd)
     is left out until a week of baseline days makes it more than noise."""
-    rn = lambda x: None if x is None else round(x, 1)
+    rn = lambda x: None if x is None else round(x, digits)
     band = [b.sd is not None and b.baseline_days >= 7 for b in series]
     return {
         key: [rn(b.value) for b in series],
@@ -112,9 +115,11 @@ def baseline_json(key: str, series: list[load.Baseline]) -> dict:
 
 def phone_json(conn, cfg: Config) -> dict:
     rhr, sleep = healthconnect.resting_hr(conn), healthconnect.sleep(conn)
+    last = max(sleep) if sleep else None
     return {"last_received": healthconnect.last_received(conn),
             "last_rhr_day": max(rhr).isoformat() if rhr else None,
-            "last_sleep": {"day": max(sleep).isoformat(), "hours": round(sleep[max(sleep)], 2)} if sleep else None,
+            "last_sleep": {"day": last.isoformat(), "hours": round(sleep[last], 2),
+                           "stages": healthconnect.sleep_stages(conn).get(last)} if sleep else None,
             "configured": bool(cfg.healthconnect_key)}
 
 

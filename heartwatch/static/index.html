@@ -141,6 +141,7 @@
         <div class="card"><div class="k">Long-term load</div><div class="v" style="color:var(--ltl)" id="c-ltl"></div><div class="t" id="c-ltl-t"></div></div>
         <div class="card"><div class="k">Short-term load</div><div class="v" style="color:var(--stl)" id="c-stl"></div><div class="t" id="c-stl-t"></div></div>
         <div class="card"><div class="k">Resting heart rate</div><div class="v" id="c-rhr"></div><div class="t" id="c-rhr-t"></div></div>
+        <div class="card"><div class="k">Sleep</div><div class="v" id="c-sleep"></div><div class="t" id="c-sleep-t"></div></div>
       </div>
 
       <section class="panel">
@@ -202,6 +203,32 @@
         </div>
         <div class="empty" id="r-empty" hidden></div>
         <div class="t" id="r-text"></div>
+      </section>
+
+      <section class="panel">
+        <div class="head">
+          <h2>Sleep <small>time asleep, from the ring; shown, not scored</small></h2>
+          <div class="legend">
+            <span><i class="sw" style="height:2px;background:var(--soft)"></i>Each night</span>
+            <span><i class="sw" style="height:4px;background:var(--text)"></i>7-day average</span>
+            <span><i class="box" style="background:color-mix(in srgb, var(--fresh) 22%, transparent)"></i>Your normal range</span>
+            <span><i class="sw" style="height:0;border-top:2px dashed var(--tired)"></i>7 hours</span>
+          </div>
+        </div>
+        <div id="s-chart">
+          <div class="chart">
+            <div class="axis" style="height:200px" id="s-axis"></div>
+            <div class="plot"><div style="height:200px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Hours asleep each night, the 7-day average, your normal range and the 7-hour line">
+              <path id="s-band" fill="var(--fresh)" fill-opacity=".18"/>
+              <line id="s-ref" x1="0" x2="1000" stroke="var(--tired)" stroke-opacity=".6" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>
+              <path id="s-day" fill="none" stroke="var(--soft)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+              <path id="s-week" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+            </svg></div></div>
+          </div>
+          <div class="xlabels nr" id="s-x"></div>
+        </div>
+        <div class="empty" id="s-empty" hidden></div>
+        <div class="t" id="s-text"></div>
       </section>
 
       <section class="panel">
@@ -429,7 +456,10 @@ function renderFitness() {
   const adj = Math.round(d.readiness_adjust[t]);
   // A note only when resting heart rate is moving capacity, so a bare number means "training balance only".
   const note = adj ? ` <small style="color:${adj > 0 ? "var(--fresh)" : "var(--tired)"}" title="${sign(adj)} from your resting heart rate">♥ ${sign(adj)}</small>` : "";
-  $("c-tc").innerHTML = sign(tc) + note;
+  // Not part of the number, just a flag: see the sleep chart's note.
+  const slp = sleepWeek(t);
+  const moon = slp.short ? ` <small style="color:var(--tired)" title="Short week of sleep: ${hm(slp.week)} a night. Not counted in the number.">☾</small>` : "";
+  $("c-tc").innerHTML = sign(tc) + note + moon;
   $("c-tc").style.color = tc > 3 ? "var(--fresh)" : tc < -3 ? "var(--tired)" : "";
   $("c-tc-t").textContent = adj ? `Long-term minus short-term load, with ${sign(adj)} from your resting heart rate.`
     : !d.phone.last_rhr_day ? "Long-term minus short-term load. No resting-heart-rate adjustment until the phone sends ring data."
@@ -524,16 +554,18 @@ function gapBand(lows, highs, y) {
   return path;
 }
 // One ring chart: each day, the 7-day average and the normal range. Returns whether it had data.
-function ringChart(key, prefix, lo, hi, span, empty) {
+// pad widens the axis past the data (in the reading's units); ref is a guide line kept in view.
+function ringChart(key, prefix, lo, hi, span, empty, pad = 2, ref = null) {
   const pts = ringPoints(key, lo, hi, span);
   const any = pts.some((p) => p.day !== null || p._week !== null);
   $(prefix + "-chart").hidden = !any; $(prefix + "-empty").hidden = any;
   $(prefix + "-empty").textContent = empty;
   if (!any) return;
-  const vals = pts.flatMap((p) => [p.day, p._week, p._lo, p._hi]).filter((v) => v !== null);
-  const a = Math.floor(Math.min(...vals) - 2), b = Math.ceil(Math.max(...vals) + 2);
+  const vals = pts.flatMap((p) => [p.day, p._week, p._lo, p._hi]).filter((v) => v !== null).concat(ref === null ? [] : [ref]);
+  const a = Math.floor(Math.min(...vals) - pad), b = Math.ceil(Math.max(...vals) + pad);
   const y = (v) => 280 - (v - a) / (b - a) * 260;
   $(prefix + "-axis").innerHTML = `<span style="top:6.7%">${b}</span><span style="top:93.3%">${a}</span>`;
+  if (ref !== null) { $(prefix + "-ref").setAttribute("y1", y(ref)); $(prefix + "-ref").setAttribute("y2", y(ref)); }
   $(prefix + "-band").setAttribute("d", gapBand(pts.map((p) => p._lo), pts.map((p) => p._hi), y));
   $(prefix + "-day").setAttribute("d", gapLine(pts.map((p) => p.day), y));
   $(prefix + "-week").setAttribute("d", gapLine(pts.map((p) => p._week), y));
@@ -560,13 +592,45 @@ function renderRing(lo, hi, span, t) {
     : week === null ? "Needs 4 days of ring data in a week."
     : (k < t ? `7-day average to ${fmtDay(d.days[k])}; this week has under 4 ring days so far.` : "7-day average.")
       + (d.rhr_baseline_days < d.min_baseline ? ` Still learning your normal range: ${d.rhr_baseline_days} of ${d.min_baseline} days.`
-         : low !== null ? ` Your normal is ${Math.round(low)}–${Math.round(high)} bpm.` : ""))
-    + (sleep ? ` Slept ${Math.floor(sleep.hours)}h ${String(Math.round(sleep.hours % 1 * 60)).padStart(2, "0")}m on ${fmtDay(sleep.day)}.` : "");
+         : low !== null ? ` Your normal is ${Math.round(low)}–${Math.round(high)} bpm.` : ""));
+  renderSleep(lo, hi, span, t, sleep);
   ringChart("rhr", "r", lo, hi, span, d.phone.last_rhr_day ? "No resting heart rate in this time range." : "No resting heart rate yet. It comes from the ring through Health Connect on your phone.");
   $("r-text").textContent = `When your 7-day resting heart rate is above your normal range (tired, ill, run down), training capacity loses up to ${s.readiness_adjust_max} points; below it, it gains up to ${s.readiness_adjust_max}.`
     + ` Your normal range comes from the 30 days before the current week, and the adjustment starts once ${d.min_baseline} of those have a reading.`;
   ringChart("hrv", "h", lo, hi, span, d.ring ? "No HRV in this time range." : "No HRV yet. Import a RingConn export on the Imports page.");
   $("h-text").textContent = "From RingConn's manual data exports, which give a whole-day average: workouts and stressful days pull it down too. RingConn doesn't share HRV with Health Connect, so it is shown here but doesn't change training capacity.";
+}
+
+const hm = (h) => `${Math.floor(h + 1 / 120)}h ${String(Math.round(h * 60) % 60).padStart(2, "0")}m`;
+// Under 7 hours a night, sustained, is where the evidence on performance and injury starts to bite.
+const SLEEP_NEED = 7;
+// The sleep tile and chart. Returns the 7-day picture, for the capacity tile's note.
+function sleepWeek(t) {
+  const d = S.data;
+  let k = t;
+  while (k > 0 && d.sleep_week[k] === null) k--;
+  const week = d.sleep_week[k];
+  // Short for you (below your normal range) as well as short in general.
+  const short = week !== null && week < SLEEP_NEED && d.sleep_lo[k] !== null && week < d.sleep_lo[k];
+  return { k, week, short };
+}
+function renderSleep(lo, hi, span, t, last) {
+  const d = S.data, { k, week, short } = sleepWeek(t);
+  const nights = d.sleep.slice(Math.max(0, k - 6), k + 1).filter((v) => v !== null);
+  // Hours short of 7 a night over the week: the deficit adds up, and you don't feel it adding up.
+  const owed = nights.reduce((s, v) => s + Math.max(0, SLEEP_NEED - v), 0);
+  const night = last ? ` <small style="color:${last.hours < 6 ? "var(--tired)" : "var(--muted)"}" title="Last night, ${fmtDay(last.day)}">${hm(last.hours)}</small>` : "";
+  $("c-sleep").innerHTML = week !== null ? `<span style="color:${short ? "var(--tired)" : ""}">${hm(week)}</span>${night}` : last ? hm(last.hours) : "<small>not yet</small>";
+  const st = last && last.stages;
+  $("c-sleep-t").textContent = !last ? "Comes from the ring through Health Connect on your phone (see the Imports page)."
+    : (week !== null ? `7-day average${k < t ? ` to ${fmtDay(d.days[k])}` : ""}; ` : "") + `${hm(last.hours)} on ${fmtDay(last.day)}`
+      + (st ? ` (light ${hm(st.light / 60)}, deep ${hm(st.deep / 60)}, REM ${hm(st.rem / 60)})` : "") + "."
+      + (nights.length ? ` ${owed >= 0.5 ? `${hm(owed)} short of ${SLEEP_NEED} h a night` : `At least ${SLEEP_NEED} h a night`} over the last ${nights.length} nights.` : "");
+  ringChart("sleep", "s", lo, hi, span, last ? "No sleep in this time range." : "No sleep yet. It comes from the ring through Health Connect on your phone.", 1, SLEEP_NEED);
+  $("s-text").textContent = `Time asleep is light + deep + REM, the same as RingConn's "Time Asleep", filed under the morning it ends (a nap before noon counts with the night before). `
+    + `The dashed line is ${SLEEP_NEED} hours: sports-medicine consensus recommends 7–9 for adults who train, and a run of shorter nights is linked to worse endurance and more injuries. `
+    + `Sleep isn't scored into training capacity: there's no validated formula for turning hours asleep into points, and the studies behind the 7-hour line measured groups, not your own night-to-night swings. `
+    + `When your week is both under ${SLEEP_NEED} hours and below your own normal range, the capacity tile shows ☾ as a reminder.`;
 }
 
 function renderTrends() {
