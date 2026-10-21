@@ -220,7 +220,7 @@
             <div class="axis" style="height:200px" id="s-axis"></div>
             <div class="plot"><div style="height:200px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Hours asleep each night, the 7-day average, your normal range and the 7-hour line">
               <path id="s-band" fill="var(--fresh)" fill-opacity=".18"/>
-              <line id="s-ref" x1="0" x2="1000" stroke="var(--tired)" stroke-opacity=".6" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>
+              <line id="s-ref" x1="0" x2="1000" stroke="var(--tired)" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>
               <path id="s-day" fill="none" stroke="var(--soft)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
               <path id="s-week" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
             </svg></div></div>
@@ -565,7 +565,10 @@ function ringChart(key, prefix, lo, hi, span, empty, pad = 2, ref = null) {
   const a = Math.floor(Math.min(...vals) - pad), b = Math.ceil(Math.max(...vals) + pad);
   const y = (v) => 280 - (v - a) / (b - a) * 260;
   $(prefix + "-axis").innerHTML = `<span style="top:6.7%">${b}</span><span style="top:93.3%">${a}</span>`;
-  if (ref !== null) { $(prefix + "-ref").setAttribute("y1", y(ref)); $(prefix + "-ref").setAttribute("y2", y(ref)); }
+  if (ref !== null) {
+    $(prefix + "-ref").setAttribute("y1", y(ref)); $(prefix + "-ref").setAttribute("y2", y(ref));
+    $(prefix + "-axis").innerHTML += `<span style="top:${(y(ref) / 3).toFixed(2)}%">${ref}</span>`;
+  }
   $(prefix + "-band").setAttribute("d", gapBand(pts.map((p) => p._lo), pts.map((p) => p._hi), y));
   $(prefix + "-day").setAttribute("d", gapLine(pts.map((p) => p.day), y));
   $(prefix + "-week").setAttribute("d", gapLine(pts.map((p) => p._week), y));
@@ -601,7 +604,9 @@ function renderRing(lo, hi, span, t) {
   $("h-text").textContent = "From RingConn's manual data exports, which give a whole-day average: workouts and stressful days pull it down too. RingConn doesn't share HRV with Health Connect, so it is shown here but doesn't change training capacity.";
 }
 
-const hm = (h) => `${Math.floor(h + 1 / 120)}h ${String(Math.round(h * 60) % 60).padStart(2, "0")}m`;
+const hm = (h) => { const m = Math.round(h * 60); return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`; };
+// The tiles are narrow: 6h36 rather than 6h 36m.
+const hmShort = (h) => hm(h).replace(/h (\d+)m$/, "h$1");
 // Under 7 hours a night, sustained, is where the evidence on performance and injury starts to bite.
 const SLEEP_NEED = 7;
 // The sleep tile and chart. Returns the 7-day picture, for the capacity tile's note.
@@ -619,8 +624,8 @@ function renderSleep(lo, hi, span, t, last) {
   const nights = d.sleep.slice(Math.max(0, k - 6), k + 1).filter((v) => v !== null);
   // Hours short of 7 a night over the week: the deficit adds up, and you don't feel it adding up.
   const owed = nights.reduce((s, v) => s + Math.max(0, SLEEP_NEED - v), 0);
-  const night = last ? ` <small style="color:${last.hours < 6 ? "var(--tired)" : "var(--muted)"}" title="Last night, ${fmtDay(last.day)}">${hm(last.hours)}</small>` : "";
-  $("c-sleep").innerHTML = week !== null ? `<span style="color:${short ? "var(--tired)" : ""}">${hm(week)}</span>${night}` : last ? hm(last.hours) : "<small>not yet</small>";
+  const night = last ? ` <small style="color:${last.hours < 6 ? "var(--tired)" : "var(--muted)"}" title="Last night, ${fmtDay(last.day)}">${hmShort(last.hours)}</small>` : "";
+  $("c-sleep").innerHTML = week !== null ? `<span style="color:${short ? "var(--tired)" : ""}">${hmShort(week)}</span>${night}` : last ? hmShort(last.hours) : "<small>not yet</small>";
   const st = last && last.stages;
   $("c-sleep-t").textContent = !last ? "Comes from the ring through Health Connect on your phone (see the Imports page)."
     : (week !== null ? `7-day average${k < t ? ` to ${fmtDay(d.days[k])}` : ""}; ` : "") + `${hm(last.hours)} on ${fmtDay(last.day)}`
