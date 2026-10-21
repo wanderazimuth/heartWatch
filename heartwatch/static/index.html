@@ -13,6 +13,8 @@
     --aer: #2f6fde; --thr: #f0a04b; --ana: #5b2a86;
     --fresh: #2f6fde; --neutral: #a3a9b3; --tired: #e8833a; --risk: #c0262d;
     --ltl: #6e59c7; --stl: #b4561a; --link: #2b5fc4;
+    /* Heart-rate zones 1-5: a ramp whose neighbours differ in hue, not just shade. */
+    --z1: #2f6fde; --z2: #2e8b57; --z3: #d9a400; --z4: #e8682a; --z5: #b8203a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -21,6 +23,7 @@
       --aer: #5b8ff0; --thr: #f2ad62; --ana: #a77fd6;
       --fresh: #5b8ff0; --neutral: #6b7382; --tired: #f0965a; --risk: #ff6b5e;
       --ltl: #9b8af0; --stl: #e08a4a; --link: #8fb0ff;
+      --z1: #5b8ff0; --z2: #4cb67a; --z3: #f2cf4a; --z4: #f5803d; --z5: #ff4d7a;
     }
   }
   * { box-sizing: border-box; }
@@ -387,7 +390,7 @@ const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads:
             settings: null, draft: null, showAll: false, rows: 100, zones: "3" };
 try { if (localStorage.getItem("hw-zones") === "5") S.zones = "5"; } catch {}
 // Below zone 1, then zones 1-5: the workout table's bars and the time-in-zone chart.
-const ZONE_COLOURS = ["#a3a9b3", "var(--aer)", "#2e8b57", "var(--thr)", "var(--tired)", "var(--risk)"];
+const ZONE_COLOURS = ["#a3a9b3", "var(--z1)", "var(--z2)", "var(--z3)", "var(--z4)", "var(--z5)"];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v);
