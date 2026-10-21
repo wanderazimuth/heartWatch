@@ -81,11 +81,12 @@ them to HeartWatch on a schedule, straight over your home Wi-Fi.
 
 1. Set `healthconnect_key` in the config to a long random string (for example
    `python3 -c "import secrets; print(secrets.token_urlsafe(18))"`) and restart `heartwatch-web`.
-2. Install HC Webhook on the phone. In Health Connect grant it only **Resting heart rate** and
-   **Sleep**; it asks for every kind of health data, and needs none of the rest.
+2. Install HC Webhook on the phone. In Health Connect grant it only **Resting heart rate**,
+   **Sleep** and **Steps**; it asks for every kind of health data, and needs none of the rest.
 3. Add a webhook: URL `http://<pi address>:8081/api/healthconnect?key=<key from step 1>`, format
-   JSON. Data types: resting heart rate and sleep, with sleep detail set to **full** (without it
-   the stages are left off, and broken nights read long). (An `X-HeartWatch-Key` header works too, but
+   JSON. Data types: resting heart rate, sleep and steps, with sleep and steps detail set to
+   **full** (without it sleep stages are left off, so broken nights read long, and steps arrive as
+   daily totals, too coarse to find brisk walking in). (An `X-HeartWatch-Key` header works too, but
    HC Webhook leaves custom headers off its manual syncs, so the key belongs in the URL.)
 4. Sync mode: **Scheduled**, at times you're usually home (say 08:00 and 21:00). Exclude the app
    from battery optimisation so Android doesn't stop it.
@@ -93,7 +94,7 @@ them to HeartWatch on a schedule, straight over your home Wi-Fi.
    from the start. **Sync Now** and the app's Webhook Log show whether the Pi accepted it.
 
 HeartWatch keeps the ring's own records if other apps write the same type, archives the resting
-heart rate and sleep from every payload, and turns the header's "Ring data" date red when nothing
+heart rate, sleep and steps from every payload, and turns the header's "Ring data" date red when nothing
 has arrived for 3 days. To keep everything the phone sends (for uses beyond HeartWatch), set
 `healthconnect_keep_all = true`: whole payloads then go to `archive/healthconnect-all`, and into
 the backup with the rest of the archive. Payloads over 20 MB are refused (413 in the app's log);

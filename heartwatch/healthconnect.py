@@ -1,10 +1,10 @@
-"""Daily resting heart rate and sleep from Android Health Connect.
+"""Daily resting heart rate, sleep and steps from Android Health Connect.
 
 An app on the phone (HC Webhook) posts what's new in Health Connect as JSON.
-HeartWatch keeps two kinds of record from it: resting heart rate (the ring
-writes about one a night) and sleep sessions. Each payload is archived with
-just those two kinds, so the records can be read again if this code changes;
-the rest (workout heart rate, steps, SpO2...) is dropped, unless
+HeartWatch keeps three kinds of record from it: resting heart rate (the ring
+writes about one a night), sleep sessions and step counts. Each payload is
+archived with just those kinds, so the records can be read again if this code
+changes; the rest (workout heart rate, SpO2...) is dropped, unless
 healthconnect_keep_all asks for the whole payload to be kept as well.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ from .config import Config
 
 # Prefer the ring's own records when several apps write the same type.
 RING_ORIGIN = "ringconn"
-KEPT = ("resting_heart_rate", "sleep", "deleted")
+KEPT = ("resting_heart_rate", "sleep", "steps", "deleted")
 # RingConn stamps a night's resting heart rate anywhere from bedtime to waking,
 # so a reading belongs to the day that starts within 12 hours of it.
 DAY_SHIFT = timedelta(hours=12)
@@ -48,6 +48,7 @@ class Received:
     resting_hr: int = 0
     sleep: int = 0
     deleted: int = 0
+    steps: int = 0
     test: bool = False
 
 
@@ -75,6 +76,11 @@ def _records(payload: dict) -> list[tuple]:
         awake = sum(int(s.get("duration_seconds", 0)) for s in r.get("stages") or [] if _stage(s) in AWAKE)
         rows.append((meta.get("id") or f"sleep:{origin}:{start}:{end}", "sleep", start, end,
                      float(int(r["duration_seconds"]) - awake), origin, json.dumps(r.get("stages") or [])))
+    for r in payload.get("steps") or []:
+        meta = r.get("metadata") or {}
+        origin = meta.get("data_origin", "")
+        start, end = _instant(r["start_time"]), _instant(r["end_time"])
+        rows.append((meta.get("id") or f"steps:{origin}:{start}:{end}", "steps", start, end, float(r["count"]), origin, None))
     return rows
 
 
@@ -86,7 +92,8 @@ def _store(conn: sqlite3.Connection, payload: dict, received: int) -> Received:
             "INSERT OR REPLACE INTO health_records (id, type, start, end, value, origin, detail, received)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [row + (received,) for row in rows])
         conn.executemany("DELETE FROM health_records WHERE id = ?", [(i,) for i in deleted])
-    return Received(sum(r[1] == "resting_hr" for r in rows), sum(r[1] == "sleep" for r in rows), len(deleted))
+    return Received(sum(r[1] == "resting_hr" for r in rows), sum(r[1] == "sleep" for r in rows), len(deleted),
+                    steps=sum(r[1] == "steps" for r in rows))
 
 
 def _kept(payload: dict) -> dict:
@@ -123,13 +130,21 @@ def _write(folder: Path, now: float, data: bytes) -> None:
 
 
 def reload(conn: sqlite3.Connection, cfg: Config) -> int:
-    """Read every archived payload again, oldest first, into an emptied table. Returns how many."""
-    files = sorted(Path(cfg.archive_dir, "healthconnect").glob("*/*.json.gz"), key=lambda p: float(p.name[:-8]))
+    """Read every archived payload again, oldest first, into an emptied table. Returns how many.
+
+    Where the whole payload was kept too (healthconnect_keep_all), that copy is
+    read instead, so record types HeartWatch has since started keeping are
+    picked up from payloads received before it did."""
+    files = {p.name: p for p in Path(cfg.archive_dir, "healthconnect").glob("*/*.json.gz")}
+    files |= {p.name: p for p in Path(cfg.archive_dir, "healthconnect-all").glob("*/*.json.gz")}
+    files = sorted(files.values(), key=lambda p: float(p.name[:-8]))
     with conn:
         conn.execute("DELETE FROM health_records")
     for f in files:
         with gzip.open(f, "rt", encoding="utf-8") as fh:
-            _store(conn, _kept(json.load(fh)), int(float(f.name[:-8])))
+            payload = json.load(fh)
+        if payload.get("test") is not True:
+            _store(conn, _kept(payload), int(float(f.name[:-8])))
     return len(files)
 
 

@@ -20,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import db, dropbox, healthconnect, load, settings, store
+from . import db, dropbox, healthconnect, load, movement, settings, store
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -71,6 +71,11 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     hrv = load.baseline_series(store.hrv_readings(conn), start, end)
     # Shown with your normal range like HRV, and like HRV it doesn't change capacity.
     slept = load.baseline_series(healthconnect.sleep(conn), start, end)
+    # Today is still going, so the averages and ranges use finished days; the page shows today apart.
+    moved = movement_days(conn, cfg, ws)
+    done = {d: m for d, m in moved.items() if d < today}
+    steps = load.baseline_series({d: m.steps for d, m in done.items()}, start, end)
+    brisk = load.baseline_series({d: m.brisk_minutes for d, m in done.items() if m.brisk_minutes is not None}, start, end)
     days = load.series(total, cfg, start, end, {b.day: b.adjust for b in rhr})
     r = lambda x: round(x, 2)
     rn = lambda x: None if x is None else round(x, 1)
@@ -94,6 +99,9 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         **baseline_json("rhr", rhr),
         **baseline_json("hrv", hrv),
         **baseline_json("sleep", slept, digits=2),
+        **baseline_json("steps", steps, digits=0),
+        **baseline_json("brisk", brisk),
+        "bursts": [moved[d.day].bursts if d.day in done else None for d in days],
         "readiness_adjust": [r(b.adjust) for b in rhr],
         "min_baseline": load.MIN_BASELINE,
     })
@@ -103,7 +111,23 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     out["peak_hr"] = {"bpm": peak.peak_hr, "date": peak.start.date().isoformat()}
     out["ring"] = ring_json(conn, today)
     out["phone"] = phone_json(conn, cfg)
+    now = moved.get(today)
+    out["movement_today"] = None if now is None else {
+        "steps": now.steps, "brisk_minutes": None if now.brisk_minutes is None else round(now.brisk_minutes, 1),
+        "bursts": now.bursts, "source": now.source}
     return out
+
+
+_movement_cache: dict = {}
+
+
+def movement_days(conn, cfg: Config, ws: list[store.Workout]) -> dict[date, movement.Movement]:
+    """movement.daily(), worked out again only when steps or workouts have changed."""
+    key = (cfg.db_path, *conn.execute("SELECT COUNT(*), MAX(received) FROM health_records WHERE type = 'steps'").fetchone(),
+           len(ws), ws[-1].id if ws else None)
+    if cfg.db_path == ":memory:" or _movement_cache.get("key") != key:
+        _movement_cache.update(key=key, days=movement.daily(conn, ws))
+    return _movement_cache["days"]
 
 
 def baseline_json(key: str, series: list[load.Baseline], digits: int = 1) -> dict:
@@ -313,8 +337,9 @@ def make_handler(cfg: Config):
             if got.test:
                 log.info("health connect: test payload from the phone, not stored")
             else:
-                log.info("health connect: %d resting HR, %d sleep, %d deleted", got.resting_hr, got.sleep, got.deleted)
-            return self._json({"ok": True, "test": got.test, "resting_hr": got.resting_hr, "sleep": got.sleep, "deleted": got.deleted})
+                log.info("health connect: %d resting HR, %d sleep, %d steps, %d deleted", got.resting_hr, got.sleep, got.steps, got.deleted)
+            return self._json({"ok": True, "test": got.test, "resting_hr": got.resting_hr, "sleep": got.sleep,
+                               "steps": got.steps, "deleted": got.deleted})
 
         def _poll(self):
             if not cfg.dropbox_app_key:

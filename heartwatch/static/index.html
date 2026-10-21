@@ -145,6 +145,7 @@
         <div class="card"><div class="k">Short-term load</div><div class="v" style="color:var(--stl)" id="c-stl"></div><div class="t" id="c-stl-t"></div></div>
         <div class="card"><div class="k">Resting heart rate</div><div class="v" id="c-rhr"></div><div class="t" id="c-rhr-t"></div></div>
         <div class="card"><div class="k">Sleep</div><div class="v" id="c-sleep"></div><div class="t" id="c-sleep-t"></div></div>
+        <div class="card"><div class="k">Brisk walking</div><div class="v" id="c-move"></div><div class="t" id="c-move-t"></div></div>
       </div>
 
       <section class="panel">
@@ -232,6 +233,49 @@
         </div>
         <div class="empty" id="s-empty" hidden></div>
         <div class="t" id="s-text"></div>
+      </section>
+
+      <section class="panel">
+        <div class="head">
+          <h2>Movement <small>steps from the phone, outside workouts; shown, not scored</small></h2>
+          <div class="legend">
+            <span><i class="sw" style="height:2px;background:var(--soft)"></i>Each day</span>
+            <span><i class="sw" style="height:4px;background:var(--text)"></i>7-day average</span>
+            <span><i class="box" style="background:color-mix(in srgb, var(--fresh) 22%, transparent)"></i>Your normal range</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div><div class="k">Brisk walking, minutes a day</div>
+          <div id="b-chart">
+            <div class="chart">
+              <div class="axis" style="height:160px" id="b-axis"></div>
+              <div class="plot"><div style="height:160px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Minutes of brisk walking each day, the 7-day average and your normal range">
+                <path id="b-band" fill="var(--fresh)" fill-opacity=".18"/>
+                <path id="b-day" fill="none" stroke="var(--soft)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+                <path id="b-week" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+              </svg></div></div>
+            </div>
+            <div class="xlabels nr" id="b-x"></div>
+          </div>
+          <div class="empty" id="b-empty" hidden></div>
+          </div>
+          <div><div class="k">Steps a day <small>(dashed: 8,000)</small></div>
+          <div id="p-chart">
+            <div class="chart">
+              <div class="axis" style="height:160px" id="p-axis"></div>
+              <div class="plot"><div style="height:160px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Steps each day, the 7-day average, your normal range and the 8,000 line">
+                <path id="p-band" fill="var(--fresh)" fill-opacity=".18"/>
+                <line id="p-ref" x1="0" x2="1000" stroke="var(--tired)" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>
+                <path id="p-day" fill="none" stroke="var(--soft)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+                <path id="p-week" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+              </svg></div></div>
+            </div>
+            <div class="xlabels nr" id="p-x"></div>
+          </div>
+          <div class="empty" id="p-empty" hidden></div>
+          </div>
+        </div>
+        <div class="t" id="m-text"></div>
       </section>
 
       <section class="panel">
@@ -586,7 +630,9 @@ function ringChart(key, prefix, lo, hi, span, empty, pad = 2, ref = null) {
   $(prefix + "-empty").textContent = empty;
   if (!any) return;
   const vals = pts.flatMap((p) => [p.day, p._week, p._lo, p._hi]).filter((v) => v !== null).concat(ref === null ? [] : [ref]);
-  const a = Math.floor(Math.min(...vals) - pad), b = Math.ceil(Math.max(...vals) + pad);
+  // Large readings (steps) get round thousands on the axis; none of these readings go below zero.
+  const q = pad >= 10 ? pad : 1;
+  const a = Math.max(0, Math.floor((Math.min(...vals) - pad) / q) * q), b = Math.ceil((Math.max(...vals) + pad) / q) * q;
   const y = (v) => 280 - (v - a) / (b - a) * 260;
   $(prefix + "-axis").innerHTML = `<span style="top:6.7%">${b}</span><span style="top:93.3%">${a}</span>`;
   if (ref !== null) {
@@ -621,6 +667,7 @@ function renderRing(lo, hi, span, t) {
       + (d.rhr_baseline_days < d.min_baseline ? ` Still learning your normal range: ${d.rhr_baseline_days} of ${d.min_baseline} days.`
          : low !== null ? ` Your normal is ${Math.round(low)}–${Math.round(high)} bpm.` : ""));
   renderSleep(lo, hi, span, t, sleep);
+  renderMovement(lo, hi, span, t);
   ringChart("rhr", "r", lo, hi, span, d.phone.last_rhr_day ? "No resting heart rate in this time range." : "No resting heart rate yet. It comes from the ring through Health Connect on your phone.");
   $("r-text").textContent = `When your 7-day resting heart rate is above your normal range (tired, ill, run down), training capacity loses up to ${s.readiness_adjust_max} points; below it, it gains up to ${s.readiness_adjust_max}.`
     + ` Your normal range comes from the 30 days before the current week, and the adjustment starts once ${d.min_baseline} of those have a reading.`;
@@ -660,6 +707,35 @@ function renderSleep(lo, hi, span, t, last) {
     + `The dashed line is ${SLEEP_NEED} hours: sports-medicine consensus recommends 7–9 for adults who train, and a run of shorter nights is linked to worse endurance and more injuries. `
     + `Sleep isn't scored into training capacity: there's no validated formula for turning hours asleep into points, and the studies behind the 7-hour line measured groups, not your own night-to-night swings. `
     + `When your week is both under ${SLEEP_NEED} hours and below your own normal range, the capacity tile shows ☾ as a reminder.`;
+}
+
+// The latest day with a 7-day average for key, at or before t.
+function lastWeek(key, t) {
+  let k = t;
+  while (k > 0 && S.data[key + "_week"][k] === null) k--;
+  return k;
+}
+function renderMovement(lo, hi, span, t) {
+  const d = S.data, now = d.movement_today;
+  const k = lastWeek("brisk", t), week = d.brisk_week[k], sk = lastWeek("steps", t), steps = d.steps_week[sk];
+  const brisk = now && now.brisk_minutes !== null;
+  const today = brisk ? ` <small style="color:var(--muted)" title="Today so far">${Math.round(now.brisk_minutes)}</small>` : "";
+  $("c-move").innerHTML = week !== null ? `${Math.round(week)} <small>min</small>${today}`
+    : brisk ? `${Math.round(now.brisk_minutes)} <small>min today</small>` : "<small>not yet</small>";
+  const n = (v) => Math.round(v).toLocaleString("en-US");
+  $("c-move-t").textContent = !now && week === null ? "Comes from the phone's step counts through Health Connect (see the Imports page)."
+    : (week !== null ? `Minutes a day at 100+ steps a minute, outside workouts: 7-day average to ${fmtDay(d.days[k])}.` : "Minutes at 100+ steps a minute, outside workouts.")
+      + (brisk ? ` Today so far: ${Math.round(now.brisk_minutes)} min in ${now.bursts} ${now.bursts === 1 ? "burst" : "bursts"}, ${n(now.steps)} steps.`
+         : now ? ` Today: ${n(now.steps)} steps, from the ring only.` : "")
+      + (steps !== null ? ` Steps: ${n(steps)} a day on average.` : "");
+  const none = d.phone.configured ? "No steps in this time range." : "No steps yet. They come from the phone through Health Connect.";
+  ringChart("brisk", "b", lo, hi, span, none, 5);
+  ringChart("steps", "p", lo, hi, span, none, 1000, 8000);
+  $("m-text").textContent = "Brisk walking is any minute at 100 or more steps, the cadence research uses for moderate intensity, outside the strap's workouts (and 5 minutes either side). "
+    + "A burst is a stretch of it with no more than a minute's break. It counts only while the phone is with you, and stairs mostly don't count: climbing is hard work at a slow step rate. "
+    + "Steps come from the phone's own step counter, or from the ring on days the phone counted none; the two aren't added up, since that would count your walking twice. "
+    + "In the large pooled studies, the health benefit of more steps levelled off at roughly 6,000–8,000 a day for people over 60 and 8,000–10,000 for younger adults. "
+    + "Today is left out of the averages until it's over.";
 }
 
 function renderTrends() {
