@@ -147,22 +147,36 @@ def resting_hr(conn: sqlite3.Connection) -> dict[date, float]:
 
 
 def sleep(conn: sqlite3.Connection) -> dict[date, float]:
-    """Hours asleep per night, keyed by the day the night ended.
+    """Hours asleep per night: sleep that began between noon the day before and noon that day.
 
     RingConn writes the night as one session and then each stage again as its
     own short session. With HC Webhook's sleep detail set to full those carry
-    their stage, and light + deep + REM is the time asleep (it matches the
-    RingConn app). Without stages, the longest session of the night stands in,
-    since adding the pieces up would count the night twice."""
-    staged: dict[date, float] = {}
+    their stage, and the time covered by light, deep and REM pieces is the time
+    asleep (within a couple of minutes of the RingConn app). Covered, not added
+    up: when RingConn re-analyses a night it writes the stages again without
+    removing the old ones, so pieces overlap. Without stages, the longest
+    session of the night stands in."""
+    asleep: dict[date, list[tuple[int, int]]] = {}
     longest: dict[date, float] = {}
-    for r in _preferred(conn.execute("SELECT * FROM health_records WHERE type = 'sleep' ORDER BY end").fetchall()):
-        d = datetime.fromtimestamp(r["end"]).date()
+    for r in _preferred(conn.execute("SELECT * FROM health_records WHERE type = 'sleep' ORDER BY start").fetchall()):
+        d = (datetime.fromtimestamp(r["start"]) + DAY_SHIFT).date()
         stages = json.loads(r["detail"] or "[]")
         if len(stages) == 1 and _stage(stages[0]) in ASLEEP:
-            staged[d] = staged.get(d, 0) + r["value"] / 3600
+            asleep.setdefault(d, []).append((r["start"], r["end"]))
         longest[d] = max(longest.get(d, 0), r["value"] / 3600)
-    return longest | staged
+    return longest | {d: _covered(spans) / 3600 for d, spans in asleep.items()}
+
+
+def _covered(spans: list[tuple[int, int]]) -> int:
+    """Seconds covered by the spans, overlaps counted once."""
+    total, reach = 0, None
+    for a, b in sorted(spans):
+        if reach is not None and a < reach:
+            a = reach
+        if b > a:
+            total += b - a
+        reach = b if reach is None else max(reach, b)
+    return total
 
 
 def last_received(conn: sqlite3.Connection) -> int | None:

@@ -112,6 +112,13 @@ class ReceiveTest(unittest.TestCase):
         self.send({"sleep": [piece("2", 8 * 3600, 0), piece("4", 3 * 3600, 5 * 3600), piece("1", 3600, 4 * 3600),
                              piece("5", 3600, 3 * 3600), piece("6", 2 * 3600, 3600), piece("7", 3600, 0)]})
         self.assertEqual(healthconnect.sleep(self.conn), {date(2024, 3, 5): 6.0})
+        # RingConn re-analyses the night and writes overlapping stages again: still 6 h. The night
+        # began before midnight (22:30), and an 11:00 nap the next day joins that day's night.
+        self.send({"sleep": [piece("4", 2 * 3600, 5 * 3600), piece("6", 1800, 2 * 3600)]})
+        nap = {"session_end_time": (end + timedelta(hours=5)).isoformat(), "duration_seconds": 1800, "metadata": {"data_origin": RING},
+               "stages": [{"stage": "4", "duration_seconds": 1800}]}
+        self.send({"sleep": [nap]})
+        self.assertEqual(healthconnect.sleep(self.conn), {date(2024, 3, 5): 6.5})
         self.assertEqual([healthconnect._stage({"stage": s}) for s in ("4", "SLEEP_STAGE_DEEP", "rem", "Awake in bed", "9")],
                          ["light", "deep", "rem", "awake_in_bed", "unknown"])
 
