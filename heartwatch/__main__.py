@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import config as config_mod
-from . import backup, db, dropbox, healthconnect, load, settings, store, takeout, web
+from . import backup, db, dropbox, healthconnect, load, pacetest, settings, store, takeout, web
 from .store import MIN_ACTIVE_MINUTES, is_workout
 
 log = logging.getLogger("heartwatch")
@@ -179,6 +179,7 @@ def cmd_rebuild(cfg: config_mod.Config, args) -> None:
     conn = db.connect(cfg.db_path)
     print(f"rebuilt {store.rebuild_all(conn, cfg)} workouts")
     print(f"reloaded {healthconnect.reload(conn, cfg)} Health Connect payloads")
+    print(f"found {pacetest.scan(conn, cfg)} pace tests")
 
 
 def cmd_workouts(cfg: config_mod.Config, args) -> None:
@@ -216,7 +217,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("poll", help="import new workouts from Dropbox")
     p = sub.add_parser("gaps", help="list stretches with no workouts")
     p.add_argument("--weeks", type=int, default=2)
-    sub.add_parser("rebuild", help="recompute workouts and phone data from the archived files")
+    sub.add_parser("rebuild", help="recompute workouts, pace tests and phone data from the archived files")
     sub.add_parser("backup", help="copy the archive and a database snapshot to backup_target")
     p = sub.add_parser("web", help="serve the dashboard")
     p.add_argument("--host", default="0.0.0.0")

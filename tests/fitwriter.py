@@ -29,16 +29,32 @@ def definition(local: int, global_num: int, fields: list[tuple[int, int, int]]) 
     return out + b"".join(struct.pack("<BBB", *f) for f in fields)
 
 
+LAP_TRIGGERS = {"manual": 0, "session_end": 7}
+
+
 def write(start: datetime, bpms: list[int], sport: str = "running", sub_sport: str = "generic",
-          step: int = 1) -> bytes:
-    """A FIT activity: file_id, a session, and one record per bpm, step seconds apart."""
+          step: int = 1, distances: list[float] | None = None,
+          laps: list[tuple[int, int, str]] = ()) -> bytes:
+    """A FIT activity: file_id, a session, and one record per bpm, step seconds apart.
+
+    distances (metres, one per record) and laps ((start, end) seconds from
+    start, and a trigger) are added when given."""
     body = definition(0, 0, [(0, 1, 0x00)]) + struct.pack("<BB", 0, 4)  # file_id: type = activity
     body += definition(1, 18, [(253, 4, 0x86), (2, 4, 0x86), (5, 1, 0x00), (6, 1, 0x00)])
     t0 = fit_time(start)
     body += struct.pack("<BIIBB", 1, t0 + step * len(bpms), t0, SPORTS[sport], SUB_SPORTS[sub_sport])
-    body += definition(2, 20, [(253, 4, 0x86), (3, 1, 0x02)])
-    for i, bpm in enumerate(bpms):
-        body += struct.pack("<BIB", 2, t0 + i * step, bpm)
+    if distances is None:
+        body += definition(2, 20, [(253, 4, 0x86), (3, 1, 0x02)])
+        for i, bpm in enumerate(bpms):
+            body += struct.pack("<BIB", 2, t0 + i * step, bpm)
+    else:
+        body += definition(2, 20, [(253, 4, 0x86), (3, 1, 0x02), (5, 4, 0x86)])
+        for i, (bpm, d) in enumerate(zip(bpms, distances)):
+            body += struct.pack("<BIBI", 2, t0 + i * step, bpm, round(d * 100))
+    if laps:
+        body += definition(3, 19, [(253, 4, 0x86), (2, 4, 0x86), (24, 1, 0x00)])
+        for a, b, trigger in laps:
+            body += struct.pack("<BIIB", 3, t0 + b, t0 + a, LAP_TRIGGERS[trigger])
     header = struct.pack("<BBHI4s", 14, 0x20, 2132, len(body), b".FIT")
     header += struct.pack("<H", crc(header))
     data = header + body

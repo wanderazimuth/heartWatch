@@ -14,7 +14,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterator
 
-from . import fit, ringconn, takeout
+from . import fit, pacetest, ringconn, takeout
 from .config import Config
 from .load import Load, workout_load, zone
 
@@ -58,11 +58,16 @@ def import_fit(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) ->
     rel = dest.relative_to(cfg.archive_dir).as_posix()
     start, end = int(rec.start.timestamp()), int(rec.end.timestamp())
     with conn:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO workouts (start, end, sport, source, source_ref, archive_path, detail, peak_hr, imported)"
             " VALUES (?, ?, ?, 'fit', ?, ?, ?, ?, ?)",
             (start, end, rec.sport, ref, rel, rec.fit_sport, max(b for _, b in rec.hr), int(time.time())))
         rebuild(conn, cfg, overlapping(conn, start, end))
+    if rec.sport == "run":
+        try:
+            pacetest.save(conn, cur.lastrowid, pacetest.find(io.BytesIO(data)))
+        except Exception as e:  # a test that can't be measured mustn't lose the workout
+            log.warning("pace test in %s: %s", name, e)
     return Imported(name, "added", rec)
 
 

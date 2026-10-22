@@ -361,6 +361,31 @@
         <div class="xlabels nr" id="z-x"></div>
         <div class="t" id="z-text"></div>
       </section>
+      <section class="panel">
+        <div class="head">
+          <div><h2>Pace test <small>steady runs marked with laps</small></h2><div class="t" id="pt-sum"></div></div>
+          <div class="pills" role="group" aria-label="Units" id="pt-units"></div>
+        </div>
+        <div id="pt-chart-wrap">
+          <div class="chart">
+            <div class="axis" style="height:200px" id="pt-axis"></div>
+            <div class="plot"><div style="height:200px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Heartbeats per distance in each pace test">
+              <line x1="0" y1="20" x2="1000" y2="20" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+              <line x1="0" y1="155" x2="1000" y2="155" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+              <line x1="0" y1="290" x2="1000" y2="290" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+              <polyline id="pt-line" fill="none" stroke="var(--aer)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+              <g id="pt-dots"></g>
+            </svg></div></div>
+          </div>
+          <div class="xlabels nr" id="pt-x"></div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>When</th><th class="num">Test</th><th class="num">Pace</th><th class="num">Heart rate</th><th class="num" id="pt-bpd">Beats per km</th>
+            <th class="num">Recovery</th><th class="num">Pace spread</th><th class="num">Drift</th><th>Not a test</th></tr></thead>
+          <tbody id="pt-rows"></tbody>
+        </table></div>
+        <div class="t" id="pt-text"></div>
+      </section>
     </div>
   </section>
 
@@ -433,6 +458,9 @@ const KNOBS = [
 const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
             settings: null, draft: null, showAll: false, rows: 100, zones: "3" };
 try { if (localStorage.getItem("hw-zones") === "5") S.zones = "5"; } catch {}
+S.units = "km";
+try { if (localStorage.getItem("hw-units") === "mi") S.units = "mi"; } catch {}
+const MILE = 1.609344;
 // Below zone 1, then zones 1-5: the workout table's bars and the time-in-zone chart.
 const ZONE_COLOURS = ["#a3a9b3", "var(--z1)", "var(--z2)", "var(--z3)", "var(--z4)", "var(--z5)"];
 const $ = (id) => document.getElementById(id);
@@ -798,6 +826,63 @@ function renderTrends() {
   $("t-sessions").textContent = `${count("run")} runs and ${count("strength")} dumbbell sessions in this range` + (count("other") ? `, plus ${count("other")} untyped` : "");
   xLabels($("t-x2"), lo, hi, span);
   renderZones(lo, hi, span, size, label, sports, axis);
+  renderPaceTests();
+}
+
+// Pace tests: every one found, whatever the time range, since they're weeks apart.
+// The chart is heartbeats per km (or mile): fewer beats to cover the same ground is fitter.
+const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+function renderPaceTests() {
+  const all = S.data.pace_tests || [], tests = all.filter((p) => !p.not_test);
+  const k = S.units === "mi" ? MILE : 1, unit = S.units === "mi" ? "mi" : "km";
+  pills($("pt-units"), [["km", "km"], ["mi", "miles"]], S.units, (id) => {
+    S.units = id;
+    try { localStorage.setItem("hw-units", id); } catch {}
+    renderPaceTests();
+  });
+  $("pt-bpd").textContent = `Beats per ${unit}`;
+  const beats = (p) => Math.round(p.beats_per_km * k);
+  $("pt-chart-wrap").hidden = tests.length < 2;
+  if (tests.length >= 2) {
+    const vals = tests.map(beats), t0 = day(tests[0].start), t1 = day(tests[tests.length - 1].start);
+    const pad = Math.max(10, (Math.max(...vals) - Math.min(...vals)) * 0.15);
+    const top = Math.ceil((Math.max(...vals) + pad) / 10) * 10, bottom = Math.floor((Math.min(...vals) - pad) / 10) * 10;
+    const y = (v) => 290 - (v - bottom) / (top - bottom) * 270;
+    const x = (p) => ((day(p.start) - t0) / Math.max(1, t1 - t0) * 960 + 20).toFixed(1);
+    $("pt-line").setAttribute("points", tests.map((p, i) => x(p) + "," + y(vals[i]).toFixed(1)).join(" "));
+    // Circles would stretch with the chart, so each dot is a zero-length line with round caps.
+    $("pt-dots").innerHTML = tests.map((p, i) => `<line x1="${x(p)}" x2="${x(p)}" y1="${y(vals[i]).toFixed(1)}" y2="${y(vals[i]).toFixed(1)}"
+      stroke="var(--aer)" stroke-width="9" stroke-linecap="round" vector-effect="non-scaling-stroke"><title>${fmtDay(p.start)}: ${vals[i]} beats per ${unit}</title></line>`).join("");
+    $("pt-axis").innerHTML = `<span style="top:6.7%">${top}</span><span style="top:51.7%">${(top + bottom) / 2}</span><span style="top:96.7%">${bottom}</span>`;
+    $("pt-x").innerHTML = `<span>${fmtDay(tests[0].start)}</span><span>${fmtDay(tests[tests.length - 1].start)}</span>`;
+  }
+  const first = tests[0], last = tests[tests.length - 1];
+  const change = tests.length >= 2 ? Math.round((last.beats_per_km - first.beats_per_km) / first.beats_per_km * 1000) / 10 : null;
+  $("pt-sum").textContent = !tests.length ? "No pace tests yet."
+    : tests.length === 1 ? `Baseline set ${fmtDay(first.start)}: ${beats(first)} beats per ${unit}. The chart starts with your second test.`
+    : `${tests.length} tests. Beats per ${unit} ${change < 0 ? "down" : change > 0 ? "up" : "unchanged"}${change ? " " + Math.abs(change) + "%" : ""} since the first`
+      + (change < -2 ? ", fitter." : change > 2 ? "." : ", within the noise between tests.");
+  const pct = (v) => (v * 100).toFixed(1) + "%";
+  $("pt-rows").innerHTML = all.slice().reverse().map((p) => `<tr class="${p.not_test ? "leftover" : ""}">
+      <td>${new Date(p.start).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+      <td class="num">${Math.round(p.minutes)} min, ${(p.distance / 1000 / k).toFixed(2)} ${unit}</td>
+      <td class="num">${mmss(p.pace * k)} /${unit}</td><td class="num">${Math.round(p.hr)}</td><td class="num"><b>${beats(p)}</b></td>
+      <td class="num">${p.recovery == null ? '<span title="No heart rate for the minute after stopping: auto-pause on, or you walked">–</span>' : `${p.recovery} bpm`}</td>
+      <td class="num"${p.spread > 0.05 ? ' style="color:var(--risk)"' : ""}>±${pct(p.spread)}</td>
+      <td class="num"${p.decoupling > 0.05 ? ' style="color:var(--risk)"' : ""}>${p.decoupling >= 0 ? "+" : "−"}${pct(Math.abs(p.decoupling))}</td>
+      <td><input type="checkbox" data-id="${p.id}" aria-label="Not a pace test"${p.not_test ? " checked" : ""}></td></tr>`).join("")
+    || '<tr><td colspan="9" class="empty">Run one the way the notes below describe and it shows up here.</td></tr>';
+  $("pt-rows").querySelectorAll("input").forEach((box) => (box.onchange = async () => {
+    box.disabled = true;
+    try { await api(`/api/pacetests/${box.dataset.id}`, { not_test: box.checked }); await refresh(); }
+    catch (e) { toast(e.message); box.disabled = false; }
+  }));
+  $("pt-text").textContent = "How to run one: warm up 10 minutes, press lap, run 15–20 minutes at the same steady pace each time on a flat route, "
+    + "press lap and stop dead for a minute, with auto-pause off so the recording keeps going. "
+    + "Heart rate, pace and beats per distance are over the test's last 10 minutes. Recovery is how far heart rate fell in the minute after you stopped. "
+    + "Pace spread is how much your minute-by-minute pace varied; under 5% makes tests comparable. "
+    + "Drift is heart rate against pace from the first half of the test to the second; over 5% means the warm-up was short, or it was hot. "
+    + "Expect about 3% between tests from heat, sleep and fatigue alone, so trust a trend over three or four tests.";
 }
 
 // Time in zone: the same periods and workout types as the load bars, counted in minutes rather than load.

@@ -54,6 +54,21 @@ CREATE TABLE IF NOT EXISTS health_records (
     received INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS health_records_type ON health_records (type, start);
+
+-- Pace tests found in runs (see pacetest.py), measured once when the run is imported.
+CREATE TABLE IF NOT EXISTS pace_tests (
+    workout_id INTEGER PRIMARY KEY REFERENCES workouts (id) ON DELETE CASCADE,
+    start INTEGER NOT NULL,          -- unix seconds, when the test lap began
+    seconds REAL NOT NULL,
+    distance REAL NOT NULL,          -- metres
+    pace REAL NOT NULL,              -- seconds per km over the last 10 minutes
+    hr REAL NOT NULL,                -- average over the last 10 minutes
+    spread REAL NOT NULL,            -- minute-to-minute pace variation, a fraction
+    decoupling REAL NOT NULL,        -- heart rate against pace, second half vs first
+    hr_stop INTEGER,                 -- when you stopped, and a minute later
+    hr_after INTEGER,
+    not_test INTEGER NOT NULL DEFAULT 0  -- marked by hand on the dashboard
+);
 """
 
 
