@@ -380,7 +380,7 @@
           <div class="xlabels nr" id="pt-x"></div>
         </div>
         <div class="table-wrap"><table>
-          <thead><tr><th>When</th><th class="num">Test</th><th class="num">Pace</th><th class="num">Heart rate</th><th class="num" id="pt-bpd">Beats per km</th>
+          <thead><tr><th>When</th><th class="num">Test</th><th class="num">Pace</th><th class="num">Heart rate</th><th class="num" id="pt-bpd">Beats per mi</th>
             <th class="num">Recovery</th><th class="num">Pace spread</th><th class="num">Drift</th><th>Not a test</th></tr></thead>
           <tbody id="pt-rows"></tbody>
         </table></div>
@@ -458,8 +458,8 @@ const KNOBS = [
 const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
             settings: null, draft: null, showAll: false, rows: 100, zones: "3" };
 try { if (localStorage.getItem("hw-zones") === "5") S.zones = "5"; } catch {}
-S.units = "km";
-try { if (localStorage.getItem("hw-units") === "mi") S.units = "mi"; } catch {}
+S.units = "mi";
+try { if (localStorage.getItem("hw-units") === "km") S.units = "km"; } catch {}
 const MILE = 1.609344;
 // Below zone 1, then zones 1-5: the workout table's bars and the time-in-zone chart.
 const ZONE_COLOURS = ["#a3a9b3", "var(--z1)", "var(--z2)", "var(--z3)", "var(--z4)", "var(--z5)"];
@@ -835,7 +835,7 @@ const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).pa
 function renderPaceTests() {
   const all = S.data.pace_tests || [], tests = all.filter((p) => !p.not_test);
   const k = S.units === "mi" ? MILE : 1, unit = S.units === "mi" ? "mi" : "km";
-  pills($("pt-units"), [["km", "km"], ["mi", "miles"]], S.units, (id) => {
+  pills($("pt-units"), [["mi", "miles"], ["km", "km"]], S.units, (id) => {
     S.units = id;
     try { localStorage.setItem("hw-units", id); } catch {}
     renderPaceTests();
