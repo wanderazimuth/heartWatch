@@ -69,6 +69,7 @@ class StoreTest(unittest.TestCase):
         store.import_fit(self.conn, self.cfg, "easy.fit", run(test_speed=2.1, laps=False))  # an ordinary run
         [t] = pacetest.tests_json(self.conn)
         self.assertEqual((t["minutes"], t["recovery"], t["not_test"]), (20, 20, False))
+        self.assertAlmostEqual(t["lap_pace"], 1000 / 1.9, delta=1)
         self.conn.execute("UPDATE pace_tests SET not_test = 1")
         self.assertEqual(pacetest.scan(self.conn, self.cfg), 1)
         self.assertTrue(pacetest.tests_json(self.conn)[0]["not_test"])

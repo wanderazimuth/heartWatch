@@ -164,6 +164,7 @@ def tests_json(conn: sqlite3.Connection) -> list[dict]:
         out.append({
             "id": r["workout_id"], "start": datetime.fromtimestamp(r["start"]).isoformat(timespec="minutes"),
             "minutes": round(r["seconds"] / 60, 1), "distance": round(r["distance"]), "pace": round(r["pace"], 1),
+            "lap_pace": round(r["seconds"] / r["distance"] * 1000, 1),
             "hr": round(r["hr"], 1), "beats_per_km": round(r["hr"] * r["pace"] / 60),
             "spread": round(r["spread"], 3), "decoupling": round(r["decoupling"], 3),
             "recovery": None if r["hr_after"] is None else r["hr_stop"] - r["hr_after"],

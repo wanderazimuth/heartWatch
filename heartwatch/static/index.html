@@ -831,7 +831,7 @@ function renderTrends() {
 
 // Pace tests: every one found, whatever the time range, since they're weeks apart.
 // The chart is heartbeats per km (or mile): fewer beats to cover the same ground is fitter.
-const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+const mmss = (sec) => { sec = Math.round(sec); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; };
 function renderPaceTests() {
   const all = S.data.pace_tests || [], tests = all.filter((p) => !p.not_test);
   const k = S.units === "mi" ? MILE : 1, unit = S.units === "mi" ? "mi" : "km";
@@ -866,7 +866,7 @@ function renderPaceTests() {
   $("pt-rows").innerHTML = all.slice().reverse().map((p) => `<tr class="${p.not_test ? "leftover" : ""}">
       <td>${new Date(p.start).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</td>
       <td class="num">${Math.round(p.minutes)} min, ${(p.distance / 1000 / k).toFixed(2)} ${unit}</td>
-      <td class="num">${mmss(p.pace * k)} /${unit}</td><td class="num">${Math.round(p.hr)}</td><td class="num"><b>${beats(p)}</b></td>
+      <td class="num">${mmss(p.lap_pace * k)} /${unit}<div class="t" style="font-size:12px">last 10 min ${mmss(p.pace * k)}</div></td><td class="num">${Math.round(p.hr)}</td><td class="num"><b>${beats(p)}</b></td>
       <td class="num">${p.recovery == null ? '<span title="No heart rate for the minute after stopping: auto-pause on, or you walked">–</span>' : `${p.recovery} bpm`}</td>
       <td class="num"${p.spread > 0.05 ? ' style="color:var(--risk)"' : ""}>±${pct(p.spread)}</td>
       <td class="num"${p.decoupling > 0.05 ? ' style="color:var(--risk)"' : ""}>${p.decoupling >= 0 ? "+" : "−"}${pct(Math.abs(p.decoupling))}</td>
@@ -879,7 +879,7 @@ function renderPaceTests() {
   }));
   $("pt-text").textContent = "How to run one: warm up 10 minutes, press lap, run 15–20 minutes at the same steady pace each time on a flat route, "
     + "press lap and stop dead for a minute, with auto-pause off so the recording keeps going. "
-    + "Heart rate, pace and beats per distance are over the test's last 10 minutes. Recovery is how far heart rate fell in the minute after you stopped. "
+    + "Pace is the whole test lap, as the Wahoo app shows it; heart rate and beats per distance are over the test's last 10 minutes, once heart rate has settled. Recovery is how far heart rate fell in the minute after you stopped. "
     + "Pace spread is how much your minute-by-minute pace varied; under 5% makes tests comparable. "
     + "Drift is heart rate against pace from the first half of the test to the second; over 5% means the warm-up was short, or it was hot. "
     + "Expect about 3% between tests from heat, sleep and fatigue alone, so trust a trend over three or four tests.";
