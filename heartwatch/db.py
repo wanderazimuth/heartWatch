@@ -69,6 +69,19 @@ CREATE TABLE IF NOT EXISTS pace_tests (
     hr_after INTEGER,
     not_test INTEGER NOT NULL DEFAULT 0  -- marked by hand on the dashboard
 );
+
+-- Threshold test candidates in runs (see thresholdtest.py): 25-40 minute laps. Whether one was
+-- hard enough to be a test is decided when it's shown.
+CREATE TABLE IF NOT EXISTS threshold_tests (
+    workout_id INTEGER PRIMARY KEY REFERENCES workouts (id) ON DELETE CASCADE,
+    start INTEGER NOT NULL,          -- unix seconds, when the test lap began
+    seconds REAL NOT NULL,
+    hr REAL NOT NULL,                -- average over the last 20 minutes: the LTHR
+    peak INTEGER NOT NULL,           -- highest in the lap
+    distance REAL,                   -- metres, whole lap; none without GPS
+    pace REAL,                       -- seconds per km over the last 20 minutes
+    not_test INTEGER NOT NULL DEFAULT 0  -- marked by hand on the dashboard
+);
 """
 
 

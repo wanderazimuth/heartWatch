@@ -386,6 +386,16 @@
         </table></div>
         <div class="t" id="pt-text"></div>
       </section>
+      <section class="panel">
+        <div class="head">
+          <div><h2>Threshold test <small>30 minutes hard, marked with laps</small></h2><div class="t" id="tt-sum"></div></div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>When</th><th class="num">Test</th><th class="num">Pace</th><th class="num">Threshold heart rate</th><th class="num">Peak</th><th>Not a test</th></tr></thead>
+          <tbody id="tt-rows"></tbody>
+        </table></div>
+        <div class="t" id="tt-text"></div>
+      </section>
     </div>
   </section>
 
@@ -415,6 +425,8 @@
           <div style="display:flex;gap:8px"><button type="button" id="s-reset">Reset to config.toml</button><button type="button" class="primary" id="s-save" disabled>Save</button></div>
         </div>
         <div class="knobs" id="s-knobs"></div>
+        <label class="t" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-auto="lthr_zones"> Zones 2–5 from your threshold test</label>
+        <div class="t" id="s-lthr"></div>
         <div class="zones" id="s-zones"></div>
       </section>
       <section class="panel">
@@ -447,7 +459,7 @@ const STATES = {
 const SPORT_NAMES = { run: "Run", strength: "Dumbbells", other: "Other" };
 const KNOBS = [
   ["resting_hr", "Resting heart rate", 1, "bpm", "Your heart rate at rest."],
-  ["max_hr", "Max heart rate", 1, "bpm", "Raise it when a workout goes higher."],
+  ["max_hr", "Max heart rate", 1, "bpm", "The highest your heart rate goes."],
   ["fitness_days", "Fitness score smoothing", 3, "d", "How slowly the fitness score follows long-term load."],
   ["aerobic_days", "Long-term load: aerobic", 5, "d", "Zones 1–2."],
   ["threshold_days", "Long-term load: threshold", 5, "d", "Zones 3–4."],
@@ -455,6 +467,21 @@ const KNOBS = [
   ["fatigue_days", "Short-term load (fatigue)", 1, "d", "How long a hard session counts as fatigue."],
   ["readiness_adjust_max", "Resting heart rate adjustment", 1, "pts", "The most resting heart rate can move training capacity, either way. 0 turns it off."],
 ];
+// Heart rates that can come from the data instead (profile.py): the switch, its label, and where the number came from.
+const AUTO = {
+  resting_hr: ["auto_resting_hr", "From the ring", (x) => x.bpm ? `The ring's average over the last 30 days (${x.days} days).`
+    : `Needs ${x.min_days} days of ring data in the last 30 (${x.days} so far), so the number set here is used.`],
+  max_hr: ["auto_max_hr", "From your workouts", (x) => x.bpm ? `The highest held for 5 seconds in the last 12 months, ${fmtDay(x.date)}. Only a hard effort gets there: after months of easy runs it reads low.`
+    : "No workouts in the last 12 months, so the number set here is used."],
+};
+const SWITCHES = ["auto_resting_hr", "auto_max_hr", "lthr_zones"];
+// Zone edges as load.zone_bounds() draws them: zone 1 from half the reserve, zones 2-5 from LTHR when there is one.
+function zoneEdges(rest, max, lthr) {
+  const z1 = Math.round(rest + 0.5 * (max - rest));
+  const rest4 = lthr ? [85, 90, 95, 100].map((p) => Math.ceil(p * lthr / 100))
+    : [0.6, 0.7, 0.8, 0.9].map((f) => Math.round(rest + f * (max - rest)));
+  return [z1, ...rest4, max];
+}
 const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
             settings: null, draft: null, showAll: false, rows: 100, zones: "3" };
 try { if (localStorage.getItem("hw-zones") === "5") S.zones = "5"; } catch {}
@@ -569,7 +596,7 @@ function renderFitness() {
   $("c-stl-t").textContent = `Your fatigue, averaged over about ${d.settings.fatigue_days} days.`;
 
   const peak = d.peak_hr;
-  $("f-peak").hidden = !(peak && peak.bpm > d.settings.max_hr);
+  $("f-peak").hidden = !(peak && peak.bpm > d.settings.max_hr && !d.settings.auto_max_hr);
   if (peak) $("f-peak").innerHTML = `Your highest recorded heart rate is ${peak.bpm} (${fmtDay(peak.date)}), above your max of ${d.settings.max_hr}. <a href="#imports">Raise max heart rate</a> to move your zones up.`;
 
   const pts = points(["fitness", "ltl", "stl", "capacity"], lo, hi, span);
@@ -609,8 +636,10 @@ function renderFitness() {
   $("f-strip").innerHTML = runs.map((r) => `<div title="${r.s}" style="flex:${r.n} 0 0;background:${STATES[r.s][0]}"></div>`).join("");
   $("f-states").innerHTML = `<span>Fitness state:</span>` + Object.entries(STATES).map(([k, [c]]) => `<span><i class="box" style="width:18px;height:10px;background:${c}"></i>${k}</span>`).join("");
   xLabels($("f-x"), lo, hi, span);
-  const s = d.settings;
-  $("f-note").textContent = `Load is scored from heart rate alone (TRIMP, using heart rate reserve: resting ${s.resting_hr}, max ${s.max_hr}, zone 2 = ${d.zones[1][0]}–${d.zones[1][1]} bpm). `
+  const s = d.settings, dv = d.derived;
+  const found = (k) => s[AUTO[k][0]] && dv[k].bpm != null && dv[k].used === dv[k].bpm;
+  $("f-note").textContent = `Load is scored from heart rate alone (TRIMP, using heart rate reserve: resting ${s.resting_hr}${found("resting_hr") ? " from the ring" : ""}, `
+    + `max ${s.max_hr}${found("max_hr") ? " from your workouts" : ""}; zones ${s.lthr ? `2–5 from your threshold heart rate, ${s.lthr}` : "as percentages of the reserve"}, zone 2 = ${d.zones[1][0]}–${d.zones[1][1]} bpm). `
     + `Short-term load averages over ${s.fatigue_days} days; long-term load over ${s.aerobic_days} days for aerobic work, ${s.threshold_days} for threshold and ${s.anaerobic_days} for anaerobic. `
     + `Fitness score is long-term load smoothed again over ${s.fitness_days} days. Training capacity = long-term load − short-term load + resting-heart-rate adjustment (up to ±${s.readiness_adjust_max}).`;
 }
@@ -827,6 +856,34 @@ function renderTrends() {
   xLabels($("t-x2"), lo, hi, span);
   renderZones(lo, hi, span, size, label, sports, axis);
   renderPaceTests();
+  renderThresholdTests();
+}
+
+// Threshold tests: the newest one not marked sets zones 2-5 (thresholdtest.py, profile.py).
+function renderThresholdTests() {
+  const d = S.data, s = d.settings, all = d.threshold_tests || [], tests = all.filter((t) => !t.not_test);
+  const k = S.units === "mi" ? MILE : 1, unit = S.units === "mi" ? "mi" : "km";
+  const last = tests[tests.length - 1], prev = tests[tests.length - 2];
+  $("tt-sum").textContent = !last ? "No threshold tests yet. Until you run one, the zones are percentages of heart-rate reserve."
+    : `Latest ${fmtDay(last.start)}: ${last.lthr} bpm` + (prev ? `, ${sign(last.lthr - prev.lthr)} since ${fmtDay(prev.start)}` : "")
+      + (s.lthr === last.lthr ? ". Zones 2–5 are set from it." : !s.lthr_zones ? ". Zones from the test are off (Imports, Settings)." : ".");
+  $("tt-rows").innerHTML = all.slice().reverse().map((t) => `<tr class="${t.not_test ? "leftover" : ""}">
+      <td>${new Date(t.start).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+      <td class="num">${Math.round(t.minutes)} min${t.distance ? `, ${(t.distance / 1000 / k).toFixed(2)} ${unit}` : ""}</td>
+      <td class="num">${t.pace ? `${mmss(t.pace * k)} /${unit}` : "–"}</td><td class="num"><b>${t.lthr}</b></td><td class="num">${t.peak}</td>
+      <td><input type="checkbox" data-id="${t.id}" aria-label="Not a threshold test"${t.not_test ? " checked" : ""}></td></tr>`).join("")
+    || '<tr><td colspan="6" class="empty">Run one the way the notes below describe and it shows up here.</td></tr>';
+  $("tt-rows").querySelectorAll("input").forEach((box) => (box.onchange = async () => {
+    box.disabled = true;
+    try { await api(`/api/thresholdtests/${box.dataset.id}`, { not_test: box.checked }); await refresh(); }
+    catch (e) { toast(e.message); box.disabled = false; }
+  }));
+  const hard = Math.round(s.resting_hr + 0.8 * (s.max_hr - s.resting_hr));
+  $("tt-text").textContent = "How to run one: warm up 10–15 minutes, press lap, then run 30 minutes alone, as hard as you can hold evenly to the end, on a flat route. "
+    + "Press lap at the end and cool down. Start a little easy rather than too hard: fading in the last 10 minutes reads low. "
+    + "Your threshold heart rate is the average of the last 20 minutes; in the first 10, heart rate is still catching up. "
+    + `A lap of 25–40 minutes counts as a test when that average is above 80% of your heart-rate reserve (${hard} bpm now); an easier one is a pace test. `
+    + "The newest test sets zones 2–5 at 85, 90, 95 and 100% of it. Every 6–8 weeks is plenty: it's a race effort, so take an easy day after.";
 }
 
 // Pace tests: every one found, whatever the time range, since they're weeks apart.
@@ -839,6 +896,7 @@ function renderPaceTests() {
     S.units = id;
     try { localStorage.setItem("hw-units", id); } catch {}
     renderPaceTests();
+    renderThresholdTests();
   });
   $("pt-bpd").textContent = `Beats per ${unit}`;
   const beats = (p) => Math.round(p.beats_per_km * k);
@@ -914,7 +972,8 @@ function renderZones(lo, hi, span, size, label, sports, axis) {
   xLabels($("z-x"), lo, hi, span);
   $("z-text").textContent = "Time below zone 1 (warm-ups, rests between sets) is left out. "
     + "In Seiler's studies, well-trained endurance athletes did about 80% of their training easy, counted in sessions rather than minutes as here. "
-    + "The zones are fixed percentages of heart-rate reserve, so where your own thresholds fall can shift a few minutes between neighbouring zones.";
+    + (d.settings.lthr ? `Zones 2–5 are set from your threshold test (threshold heart rate ${d.settings.lthr}), so they follow your own threshold.`
+      : "The zones are fixed percentages of heart-rate reserve, so where your own thresholds fall can shift a few minutes between neighbouring zones. A threshold test (below) sets them from your own.");
 }
 
 function renderImports() {
@@ -937,18 +996,32 @@ function renderImports() {
       + (ring.min_hr_median ? ` Lowest heart rate of the day, middle value over the last 30 days: ${Math.round(ring.min_hr_median)} bpm.` : "");
 
   if (S.settings) {
-    const v = S.draft, def = S.settings.defaults;
-    $("s-knobs").innerHTML = KNOBS.map(([k, label, inc, unit, help]) => `<div class="knob${v[k] !== S.settings.values[k] ? " changed" : ""}">
+    const v = S.draft, def = S.settings.defaults, saved = S.settings.values, dv = S.settings.derived;
+    // With its switch on and enough data, a heart rate shows the number found and can't be stepped by hand.
+    const fromData = (k) => AUTO[k] && v[AUTO[k][0]] && dv[k].bpm ? dv[k].bpm : null;
+    $("s-knobs").innerHTML = KNOBS.map(([k, label, inc, unit, help]) => {
+      const a = AUTO[k], found = fromData(k), changed = v[k] !== saved[k] || (a && v[a[0]] !== saved[a[0]]);
+      return `<div class="knob${changed ? " changed" : ""}">
       <div style="font-weight:600;font-size:14px">${label}</div>
-      <div class="row"><button type="button" data-k="${k}" data-d="${-inc}" aria-label="Lower">−</button><span class="val">${v[k]} ${unit}</span><button type="button" data-k="${k}" data-d="${inc}" aria-label="Higher">+</button></div>
-      <div class="t" style="font-size:13px">${help}${v[k] !== def[k] ? ` config.toml: ${def[k]}.` : ""}</div></div>`).join("");
+      <div class="row"><button type="button" data-k="${k}" data-d="${-inc}" aria-label="Lower"${found ? " disabled" : ""}>−</button><span class="val">${found ?? v[k]} ${unit}</span><button type="button" data-k="${k}" data-d="${inc}" aria-label="Higher"${found ? " disabled" : ""}>+</button></div>
+      ${a ? `<label class="t" style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-auto="${a[0]}"${v[a[0]] ? " checked" : ""}> ${a[1]}</label>` : ""}
+      <div class="t" style="font-size:13px">${a && v[a[0]] ? a[2](dv[k]) : help}${!found && v[k] !== def[k] ? ` config.toml: ${def[k]}.` : ""}</div></div>`;
+    }).join("");
     $("s-knobs").querySelectorAll("button").forEach((b) => (b.onclick = () => {
       const [lo, hi] = S.settings.limits[b.dataset.k];
       S.draft[b.dataset.k] = Math.min(hi, Math.max(lo, S.draft[b.dataset.k] + Number(b.dataset.d)));
       renderImports();
     }));
-    $("s-save").disabled = KNOBS.every(([k]) => v[k] === S.settings.values[k]);
-    const hrr = v.max_hr - v.resting_hr, edge = [0.5, 0.6, 0.7, 0.8, 0.9].map((f) => Math.round(v.resting_hr + f * hrr)).concat(v.max_hr);
+    document.querySelectorAll("#tab-imports input[data-auto]").forEach((box) => {
+      box.checked = !!v[box.dataset.auto];
+      box.onchange = () => { S.draft[box.dataset.auto] = box.checked; renderImports(); };
+    });
+    $("s-save").disabled = KNOBS.every(([k]) => v[k] === saved[k]) && SWITCHES.every((k) => v[k] === saved[k]);
+    const lt = dv.lthr, lthr = v.lthr_zones && lt.bpm && lt.fits ? lt.bpm : 0;
+    $("s-lthr").textContent = !lt.bpm ? "No threshold test yet, so the zones are percentages of heart-rate reserve. Trends shows how to run one."
+      : (lt.source === "test" ? `Threshold heart rate ${lt.bpm}, from your test on ${fmtDay(lt.date)}.` : `Threshold heart rate ${lt.bpm}, from config.toml.`)
+        + (!lt.fits ? " It doesn't fit between your resting and max heart rate, so the zones stay on heart-rate reserve." : "");
+    const edge = zoneEdges(fromData("resting_hr") ?? v.resting_hr, fromData("max_hr") ?? v.max_hr, lthr);
     $("s-zones").innerHTML = "<span>Zones:</span>" + [1, 2, 3, 4, 5].map((z) => `<span>Zone ${z}: ${edge[z - 1]}–${edge[z]}</span>`).join("");
   }
 

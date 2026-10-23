@@ -22,11 +22,18 @@ TUNABLE = {
     "fatigue_days": (2, 28),
     "readiness_adjust_max": (0, 20),
 }
+# On/off: heart rates from your data rather than the numbers above (profile.py).
+SWITCHES = ("auto_resting_hr", "auto_max_hr", "lthr_zones")
 
 
 def validate(values: dict) -> dict:
     out = {}
     for key, value in values.items():
+        if key in SWITCHES:
+            if not isinstance(value, bool):
+                raise ValueError(f"{key} must be true or false")
+            out[key] = value
+            continue
         if key not in TUNABLE:
             raise ValueError(f"unknown setting {key}")
         if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -47,7 +54,7 @@ def check(cfg: Config) -> Config:
 def saved(conn: sqlite3.Connection) -> dict:
     row = conn.execute("SELECT value FROM meta WHERE key = 'settings'").fetchone()
     # A setting that was renamed or dropped since it was saved is ignored.
-    return {k: v for k, v in json.loads(row["value"]).items() if k in TUNABLE} if row else {}
+    return {k: v for k, v in json.loads(row["value"]).items() if k in TUNABLE or k in SWITCHES} if row else {}
 
 
 def effective(cfg: Config, conn: sqlite3.Connection, preview: dict | None = None) -> Config:

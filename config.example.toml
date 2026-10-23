@@ -17,7 +17,15 @@ backup_ssh_key = "/var/lib/heartwatch/.ssh/id_ed25519"
 
 # Heart-rate reserve zones: zone 2 = 60-70% of the way from resting to max.
 resting_hr = 60
-max_hr = 180   # use the highest you've recorded; raise it if a workout goes higher
+max_hr = 180
+# Found in your data instead, where there's enough of it (the numbers above are the fallback):
+# resting from the ring's last 30 days, max as the highest held for 5 seconds in the last 12 months.
+auto_resting_hr = true
+auto_max_hr = true
+# Zones 2-5 at 85/90/95/100% of your lactate threshold heart rate, from the latest threshold test
+# (or lthr, if you set one). Off, or no test yet: zones from heart-rate reserve.
+lthr_zones = true
+lthr = 0
 
 # Averaging windows, in days. Longer = smoother and slower to react.
 fitness_days = 21      # fitness score: long-term load averaged again

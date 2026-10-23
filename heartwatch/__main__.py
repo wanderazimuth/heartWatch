@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import config as config_mod
-from . import backup, db, dropbox, healthconnect, load, pacetest, settings, store, takeout, web
+from . import backup, db, dropbox, healthconnect, load, pacetest, profile, settings, store, takeout, thresholdtest, web
 from .store import MIN_ACTIVE_MINUTES, is_workout
 
 log = logging.getLogger("heartwatch")
@@ -59,6 +59,10 @@ def cmd_summary(cfg: config_mod.Config, args) -> None:
 
     bounds = load.zone_bounds(cfg)
     print("\nZones: " + "  ".join(f"z{i} {lo}-{hi}" for i, (lo, hi) in enumerate(bounds, 1)))
+    found = {k: v["auto"] and v["bpm"] is not None and v["used"] == v["bpm"] for k, v in args.derived.items() if k != "lthr"}
+    print(f"  resting {cfg.resting_hr}{' (ring, 30 days)' if found['resting_hr'] else ''},"
+          f" max {cfg.max_hr}{' (held 5 s, last 12 months)' if found['max_hr'] else ''}, "
+          + (f"zones 2-5 from LTHR {cfg.lthr}" if cfg.lthr else "zones from heart-rate reserve"))
     z2_lo, z2_hi = bounds[1]
 
     print(f"\nLast {args.weeks} weeks        workouts   min   aerobic  threshold  anaerobic  zone-2 min   state at week end")
@@ -77,7 +81,7 @@ def cmd_summary(cfg: config_mod.Config, args) -> None:
               f" {total.aerobic:9.0f} {total.threshold:10.0f} {total.anaerobic:10.0f} {z2:11.0f}   {end.state if end else ''}")
 
     top = max(ws, key=lambda w: w.peak_hr)
-    if top.peak_hr > cfg.max_hr:
+    if top.peak_hr > cfg.max_hr and not cfg.auto_max_hr:
         print(f"\nHighest heart rate recorded: {top.peak_hr} on {top.start:%Y-%m-%d}, above max_hr = {cfg.max_hr}."
               f" Consider raising max_hr to {top.peak_hr}; that moves every zone up a little.")
 
@@ -180,6 +184,7 @@ def cmd_rebuild(cfg: config_mod.Config, args) -> None:
     print(f"rebuilt {store.rebuild_all(conn, cfg)} workouts")
     print(f"reloaded {healthconnect.reload(conn, cfg)} Health Connect payloads")
     print(f"found {pacetest.scan(conn, cfg)} pace tests")
+    print(f"found {thresholdtest.scan(conn, cfg)} laps that could be threshold tests")
 
 
 def cmd_workouts(cfg: config_mod.Config, args) -> None:
@@ -226,9 +231,9 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     cfg = config_mod.load(args.config)
     if args.cmd in ("summary", "workouts", "gaps"):
-        # Settings saved from the dashboard win over config.toml.
+        # Settings saved from the dashboard win over config.toml; then heart rates from the data.
         conn = db.connect(cfg.db_path)
-        cfg = settings.effective(cfg, conn)
+        cfg, args.derived = profile.apply(settings.effective(cfg, conn), conn)
         conn.close()
     commands = {"import": cmd_import, "summary": cmd_summary, "workouts": cmd_workouts, "takeout": cmd_takeout, "ringconn": cmd_ringconn,
                 "dropbox-login": cmd_dropbox_login, "dropbox-ls": cmd_dropbox_ls, "poll": cmd_poll,

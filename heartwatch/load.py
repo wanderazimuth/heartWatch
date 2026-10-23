@@ -13,8 +13,12 @@ from .config import Config
 
 # Heart-rate reserve fractions where zones 1-5 start.
 ZONE_STARTS = (0.5, 0.6, 0.7, 0.8, 0.9)
-THRESHOLD_FROM = 0.7  # zone 3
-ANAEROBIC_FROM = 0.9  # zone 5
+# With a lactate threshold heart rate (cfg.lthr, from a threshold test): where zones 2-5 start, in
+# percent of it (Friel's running zones). Zone 1 still starts at half the reserve, so time spent
+# standing around stays out of the zones either way.
+LTHR_ZONE_STARTS = (85, 90, 95, 100)
+THRESHOLD_ZONE = 3  # zones 3-4 are threshold load
+ANAEROBIC_ZONE = 5  # zone 5, above threshold, is anaerobic
 
 OVERTRAINING_BELOW = -20
 
@@ -27,14 +31,20 @@ def reserve(bpm: float, cfg: Config) -> float:
 def zone(bpm: float, cfg: Config) -> int:
     """0 below zone 1, else 1-5."""
     r = reserve(bpm, cfg)
-    return sum(r >= s for s in ZONE_STARTS)
+    if not cfg.lthr:
+        return sum(r >= s for s in ZONE_STARTS)
+    # Whole percentages, so a bpm right on an edge can't land either side by rounding.
+    return 0 if r < ZONE_STARTS[0] else 1 + sum(bpm * 100 >= p * cfg.lthr for p in LTHR_ZONE_STARTS)
 
 
 def zone_bounds(cfg: Config) -> list[tuple[int, int]]:
     """bpm range of each zone, for display."""
     hrr = cfg.max_hr - cfg.resting_hr
-    edges = [round(cfg.resting_hr + s * hrr) for s in ZONE_STARTS] + [cfg.max_hr]
-    return list(zip(edges, edges[1:]))
+    if cfg.lthr:
+        edges = [round(cfg.resting_hr + ZONE_STARTS[0] * hrr)] + [-(-p * cfg.lthr // 100) for p in LTHR_ZONE_STARTS]
+    else:
+        edges = [round(cfg.resting_hr + s * hrr) for s in ZONE_STARTS]
+    return list(zip(edges, edges[1:] + [cfg.max_hr]))
 
 
 @dataclass
@@ -55,14 +65,18 @@ class Load:
 
 
 def workout_load(hist: dict[int, float], cfg: Config) -> Load:
-    """Banister TRIMP from seconds-per-bpm, split by intensity."""
+    """Banister TRIMP from seconds-per-bpm, split by zone.
+
+    TRIMP is always worked out on the heart-rate reserve; threshold zones only
+    decide which kind of load each beat counts as."""
     out = Load()
     for bpm, seconds in hist.items():
         r = reserve(bpm, cfg)
         trimp = seconds / 60 * r * 0.64 * math.exp(1.92 * r)
-        if r >= ANAEROBIC_FROM:
+        z = zone(bpm, cfg)
+        if z >= ANAEROBIC_ZONE:
             out.anaerobic += trimp
-        elif r >= THRESHOLD_FROM:
+        elif z >= THRESHOLD_ZONE:
             out.threshold += trimp
         else:
             out.aerobic += trimp

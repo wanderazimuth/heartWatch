@@ -39,8 +39,8 @@ computed when a page loads. Two years of days is trivial work, so there is no ca
 
 | Step | Definition | Default |
 |---|---|---|
-| Heart-rate reserve | (HR − resting) / (max − resting) | set per person in config |
-| Zones | 50/60/70/80/90/100% of reserve | zone 2 = 60–70% of reserve |
+| Heart-rate reserve | (HR − resting) / (max − resting) | from the data (`profile.py`), else config |
+| Zones | 50/60/70/80/90/100% of reserve; with a threshold test, zones 2–5 at 85/90/95/100% of LTHR | zone 2 = 60–70% of reserve |
 | Load | Banister TRIMP per second, split into aerobic (zone 2 and below), threshold (zones 3–4), anaerobic (zone 5) | ~60 per hour in zone 2 |
 | Long-term load | EWMA per dimension | 60 / 35 / 18 days |
 | Short-term load | EWMA of aerobic + 1.4 × threshold + 2 × anaerobic | 7 days |

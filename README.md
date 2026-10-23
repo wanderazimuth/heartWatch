@@ -40,6 +40,26 @@ Then open http://localhost:8081. Three tabs:
 poll. The dashboard has no login: anyone on the network who can reach the port can see your data and
 change types and settings.
 
+## Heart rates and zones
+
+Resting, max and threshold heart rate come from your own data where there's enough of it, and
+each can be switched back to a fixed number on the Imports page (or in `config.toml`):
+
+- **Resting**: the ring's daily resting heart rate, averaged over the last 30 days (14 readings
+  needed).
+- **Max**: the highest heart rate held for 5 seconds in any workout in the last 12 months, so a
+  one-beat strap glitch doesn't count and max can come down with age. Only a hard effort gets
+  near your real max, so after months of easy running it reads low.
+- **Threshold (LTHR)**: from a threshold test. Warm up, press lap, run 30 minutes alone as hard as
+  you can hold evenly, press lap. The average of the last 20 minutes is your lactate threshold
+  heart rate. HeartWatch finds the test by its laps (a manual lap of 25-40 minutes averaging over
+  80% of your heart-rate reserve; an easier lap is a pace test) and lists it on Trends. The newest
+  one sets zones 2-5 at 85, 90, 95 and 100% of it; zone 1 still starts at half the reserve, and load
+  is still scored on the reserve. Mark a lap "Not a test" there to leave it out.
+
+Like any setting, these apply to the whole history: a new test rescores past workouts too. After
+an upgrade, `heartwatch rebuild` looks for threshold tests in runs imported before.
+
 ## Backfill from Google Takeout
 
 The Wahoo app wrote its heart rate to Google Fit for years. Export Google Fit with Google Takeout,

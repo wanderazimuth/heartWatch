@@ -20,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import db, dropbox, healthconnect, load, movement, pacetest, settings, store
+from . import db, dropbox, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 SPORTS = ("run", "strength", "other")
 WORKOUT_PATH = re.compile(r"/api/workouts/(\d+)/sport")
 PACE_TEST_PATH = re.compile(r"/api/pacetests/(\d+)")
+THRESHOLD_TEST_PATH = re.compile(r"/api/thresholdtests/(\d+)")
 UPLOAD_TYPES = ("application/zip", "application/x-zip-compressed", "text/csv", "application/octet-stream")
 MAX_UPLOAD = 20 * 1024 * 1024
 # The Health Connect key may come in the URL, so keep it out of the logs.
@@ -40,11 +41,15 @@ SAFE_NAME = re.compile(r"[^A-Za-z0-9 ._()-]")
 
 
 def series_json(conn, cfg: Config, today: date | None = None) -> dict:
-    """Every day from the first workout to today, as columns, plus what the page needs around them."""
+    """Every day from the first workout to today, as columns, plus what the page needs around them.
+
+    cfg is the settings; resting, max and threshold heart rate from the data are put in here."""
     ws = store.workouts(conn)
+    cfg, derived = profile.apply(cfg, conn, ws, today)
     meta = {k: dropbox.get_meta(conn, k) for k in ("last_poll", "last_new_workout")}
     out = {
-        "settings": {k: getattr(cfg, k) for k in settings.TUNABLE},
+        "settings": {k: getattr(cfg, k) for k in (*settings.TUNABLE, *settings.SWITCHES, "lthr")},
+        "derived": derived,
         "zones": load.zone_bounds(cfg),
         "last_poll": int(meta["last_poll"]) if meta["last_poll"] else None,
         "dropbox": bool(cfg.dropbox_app_key),
@@ -111,7 +116,10 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     out["last_workout"] = last.start.isoformat(timespec="minutes") if last else None
     peak = max(ws, key=lambda w: w.peak_hr)
     out["peak_hr"] = {"bpm": peak.peak_hr, "date": peak.start.date().isoformat()}
-    out["pace_tests"] = pacetest.tests_json(conn)
+    # A threshold test's lap is long and steady enough to pass for a pace test too: it's only one of them.
+    out["threshold_tests"] = thresholdtest.tests_json(conn, cfg)
+    hard = {(t["id"], t["start"]) for t in out["threshold_tests"]}
+    out["pace_tests"] = [p for p in pacetest.tests_json(conn) if (p["id"], p["start"]) not in hard]
     out["ring"] = ring_json(conn, today)
     out["phone"] = phone_json(conn, cfg, sleep)
     now = moved.get(today)
@@ -171,8 +179,10 @@ def ring_json(conn, today: date) -> dict | None:
 
 def workouts_json(conn, cfg: Config) -> list[dict]:
     rows = {r["id"]: r for r in conn.execute("SELECT id, sport, sport_override, source, detail FROM workouts")}
+    ws = store.workouts(conn)
+    cfg, _ = profile.apply(cfg, conn, ws)
     out = []
-    for w in reversed(store.workouts(conn)):
+    for w in reversed(ws):
         row = rows[w.id]
         l = load.workout_load(w.hist, cfg)
         zones = [0.0] * 6
@@ -242,9 +252,11 @@ def make_handler(cfg: Config):
 
         def _settings(self, conn, eff: Config) -> dict:
             defaults = asdict(cfg)
-            return {"values": {k: getattr(eff, k) for k in settings.TUNABLE},
-                    "defaults": {k: defaults[k] for k in settings.TUNABLE},
-                    "limits": settings.TUNABLE}
+            keys = (*settings.TUNABLE, *settings.SWITCHES)
+            return {"values": {k: getattr(eff, k) for k in keys},
+                    "defaults": {k: defaults[k] for k in keys},
+                    "limits": settings.TUNABLE,
+                    "derived": profile.apply(eff, conn)[1]}
 
         def do_POST(self):
             path = urlparse(self.path).path
@@ -272,14 +284,17 @@ def make_handler(cfg: Config):
                     except ValueError as e:
                         return self._json({"error": str(e)}, 400)
                     return self._json(self._settings(conn, eff))
-                m = PACE_TEST_PATH.fullmatch(path)
-                if m:
+                for pattern, table, name in ((PACE_TEST_PATH, "pace_tests", "pace test"),
+                                             (THRESHOLD_TEST_PATH, "threshold_tests", "threshold test")):
+                    m = pattern.fullmatch(path)
+                    if not m:
+                        continue
                     if not isinstance(body.get("not_test"), bool):
                         return self._json({"error": "not_test must be true or false"}, 400)
                     with conn:
-                        found = conn.execute("UPDATE pace_tests SET not_test = ? WHERE workout_id = ?",
+                        found = conn.execute(f"UPDATE {table} SET not_test = ? WHERE workout_id = ?",
                                              (int(body["not_test"]), int(m.group(1)))).rowcount
-                    return self._json({"ok": True}) if found else self._json({"error": "unknown pace test"}, 404)
+                    return self._json({"ok": True}) if found else self._json({"error": f"unknown {name}"}, 404)
                 m = WORKOUT_PATH.fullmatch(path)
                 if not m:
                     return self._json({"error": "not found"}, 404)

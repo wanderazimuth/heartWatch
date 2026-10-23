@@ -21,7 +21,9 @@ class WebTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.cfg = Config(db_path=str(Path(self.tmp.name) / "hw.db"), archive_dir=self.tmp.name)
+        # The fixed resting and max these tests were worked out with (test_profile.py covers the data-driven ones).
+        self.cfg = Config(db_path=str(Path(self.tmp.name) / "hw.db"), archive_dir=self.tmp.name,
+                          auto_resting_hr=False, auto_max_hr=False)
         conn = db.connect(self.cfg.db_path)
         # A strap recording wrapping an app run, and a dumbbell session the next day.
         store.import_fit(conn, self.cfg, "strap.fit", write(START, [100] * 600 + [150] * 1200 + [100] * 600, "generic"))
@@ -107,6 +109,15 @@ class WebTest(unittest.TestCase):
     def test_bad_type(self):
         self.assertEqual(self.post("/api/workouts/1/sport", {"sport": "swim"})[0], 400)
         self.assertEqual(self.post("/api/workouts/999/sport", {"sport": "run"})[0], 404)
+
+    def test_threshold_tests_and_switches(self):
+        self.assertEqual(self.post("/api/thresholdtests/999", {"not_test": True})[0], 404)
+        self.assertEqual(self.post("/api/thresholdtests/1", {"not_test": "yes"})[0], 400)
+        status, body = self.post("/api/settings", {"auto_max_hr": True})
+        self.assertEqual((status, body["values"]["auto_max_hr"]), (200, True))
+        self.assertEqual(body["derived"]["max_hr"]["bpm"], 150)  # the run's 20 minutes at 150
+        self.assertEqual(self.get("/api/series")["settings"]["max_hr"], 150)
+        self.assertEqual(self.post("/api/settings", {"auto_max_hr": 1})[0], 400)
 
     def upload(self, data, content_type, name="Data Export.zip"):
         req = urllib.request.Request(self.base + "/api/ringconn", data,

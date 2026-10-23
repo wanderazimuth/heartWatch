@@ -14,7 +14,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterator
 
-from . import fit, pacetest, ringconn, takeout
+from . import fit, pacetest, ringconn, takeout, thresholdtest
 from .config import Config
 from .load import Load, workout_load, zone
 
@@ -64,10 +64,11 @@ def import_fit(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) ->
             (start, end, rec.sport, ref, rel, rec.fit_sport, max(b for _, b in rec.hr), int(time.time())))
         rebuild(conn, cfg, overlapping(conn, start, end))
     if rec.sport == "run":
-        try:
-            pacetest.save(conn, cur.lastrowid, pacetest.find(io.BytesIO(data)))
-        except Exception as e:  # a test that can't be measured mustn't lose the workout
-            log.warning("pace test in %s: %s", name, e)
+        for kind, mod in (("pace", pacetest), ("threshold", thresholdtest)):
+            try:
+                mod.save(conn, cur.lastrowid, mod.find(io.BytesIO(data)))
+            except Exception as e:  # a test that can't be measured mustn't lose the workout
+                log.warning("%s test in %s: %s", kind, name, e)
     return Imported(name, "added", rec)
 
 

@@ -37,6 +37,15 @@ class Config:
     # Heart-rate reserve zones (Karvonen).
     resting_hr: int = 60
     max_hr: int = 180
+    # Found in your own data instead (profile.py), falling back to the numbers above when there's
+    # too little: resting from the ring's last 30 days, max from the highest heart rate held for
+    # 5 seconds in the last 12 months.
+    auto_resting_hr: bool = True
+    auto_max_hr: bool = True
+    # Zones 2-5 from your lactate threshold heart rate (LTHR) rather than the reserve: lthr if set,
+    # else the latest threshold test (thresholdtest.py). Off, or neither: reserve zones.
+    lthr_zones: bool = True
+    lthr: int = 0
 
     # Averaging windows, in days. Fitness score is long-term load averaged again.
     fitness_days: float = 21
@@ -72,4 +81,6 @@ def load(path: str | Path | None) -> Config:
     config = Config(**raw)
     if not 0 < config.resting_hr < config.max_hr:
         raise ValueError("need 0 < resting_hr < max_hr")
+    if config.lthr and not config.resting_hr < config.lthr < config.max_hr:
+        raise ValueError("need resting_hr < lthr < max_hr, or lthr = 0")
     return config

@@ -22,6 +22,22 @@ class ZoneTest(unittest.TestCase):
         self.assertEqual(load.reserve(200, CFG), 1.0)
 
 
+class ThresholdZoneTest(unittest.TestCase):
+    LT = Config(resting_hr=60, max_hr=180, lthr=160)
+
+    def test_zones_2_to_5_from_lthr(self):
+        self.assertEqual(load.zone_bounds(self.LT), [(120, 136), (136, 144), (144, 152), (152, 160), (160, 180)])
+        self.assertEqual([load.zone(b, self.LT) for b in (119, 120, 135, 136, 143, 144, 151, 152, 159, 160)],
+                         [0, 1, 1, 2, 2, 3, 3, 4, 4, 5])
+
+    def test_load_splits_by_zone_but_scores_on_the_reserve(self):
+        # 166 is above threshold, so zone 5 and anaerobic; by the reserve (88%) it's zone 4, threshold.
+        by_lthr, by_reserve = load.workout_load({166: 600}, self.LT), load.workout_load({166: 600}, CFG)
+        self.assertEqual((by_lthr.threshold, by_reserve.anaerobic), (0, 0))
+        self.assertGreater(by_lthr.anaerobic, 0)
+        self.assertAlmostEqual(by_lthr.total, by_reserve.total)
+
+
 class WorkoutLoadTest(unittest.TestCase):
     def test_trimp_formula(self):
         bpm = 138  # reserve 0.65, zone 2

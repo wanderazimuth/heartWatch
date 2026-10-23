@@ -58,6 +58,13 @@ class Test:
 
 def find(source: str | Path | BinaryIO) -> Test | None:
     """The pace test in a run's FIT file, or None if it has none."""
+    laps, hr, dist = read(source)
+    found = [t for t in (_measure(hr, dist, a, b) for a, b in laps if b - a >= MIN_LAP) if t]
+    return max(found, key=lambda t: t.seconds, default=None)
+
+
+def read(source: str | Path | BinaryIO) -> tuple[list[tuple[float, float]], list[tuple[float, int]], list[tuple[float, float]]]:
+    """A run's manual laps (start, end), heart rate and distance, by unix time."""
     laps: list[tuple[float, float]] = []
     hr: list[tuple[float, int]] = []
     dist: list[tuple[float, float]] = []
@@ -81,8 +88,7 @@ def find(source: str | Path | BinaryIO) -> Test | None:
                     dist.append((ts.timestamp(), float(d)))
     hr.sort()
     dist.sort()
-    found = [t for t in (_measure(hr, dist, a, b) for a, b in laps if b - a >= MIN_LAP) if t]
-    return max(found, key=lambda t: t.seconds, default=None)
+    return laps, hr, dist
 
 
 def _at(series: list[tuple[float, float]], t: float) -> float | None:
