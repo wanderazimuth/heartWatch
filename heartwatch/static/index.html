@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HeartWatch</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#2f6fde">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232F6FDE' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l2-5 4 10 2-5h6'/%3E%3C/svg%3E">
 <style>
   :root {
@@ -129,6 +131,7 @@
     </div>
   </header>
 
+  <div class="notice" id="offline" hidden></div>
   <div class="notice" id="ring-nudge" hidden>Ring data is behind. <button type="button" id="ring-open">Open RingConn</button></div>
 
   <!-- Fitness & Training Capacity -->
@@ -508,10 +511,21 @@ const line = (vals, y) => vals.map((v, i) => X(i, vals.length) + "," + y(v).toFi
 
 async function api(path, body) {
   const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
-  const r = await fetch(path, opts);
+  let r;
+  try { r = await fetch(path, opts); }
+  catch { throw new Error("Can't reach HeartWatch. Away from home, Tailscale has to be connected."); }
+  // The service worker's saved copy, when the Pi couldn't be reached.
+  if (body === undefined && path === "/api/series") showOffline(r.headers.get("X-HeartWatch-Saved"));
   const data = await r.json();
   if (!r.ok) throw new Error(data.error || r.statusText);
   return data;
+}
+
+function showOffline(saved) {
+  const el = $("offline");
+  el.hidden = !saved;
+  if (saved) el.textContent = "Offline: showing the data saved " + new Date(saved).toLocaleString("en-US",
+    { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + ".";
 }
 
 let toastTimer;
@@ -1175,6 +1189,10 @@ $("update").onclick = async () => {
 
 S.tab = ["fitness", "trends", "imports"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "fitness";
 refresh(S.tab === "imports").catch((e) => toast("Couldn't load data: " + e.message));
+// Installable app with offline data. Browsers only allow it over HTTPS (the tailnet name), not http://heartwatch.lan.
+if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});
+// Back online: reload, so the offline notice goes and the numbers are live again.
+window.addEventListener("online", () => { if (!$("offline").hidden) refresh(S.tab === "imports").catch(() => {}); });
 </script>
 </body>
 </html>

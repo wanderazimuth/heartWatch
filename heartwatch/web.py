@@ -220,7 +220,15 @@ def preview_values(query: dict) -> dict:
 
 
 def make_handler(cfg: Config):
-    index_html = resources.files("heartwatch").joinpath("static", "index.html").read_bytes()
+    static = resources.files("heartwatch").joinpath("static")
+    # The page, and what makes it an installable app (manifest, icons, the offline service worker).
+    files = {path: (static.joinpath(name).read_bytes(), kind) for path, name, kind in (
+        ("/", "index.html", "text/html; charset=utf-8"),
+        ("/manifest.webmanifest", "manifest.webmanifest", "application/manifest+json"),
+        ("/sw.js", "sw.js", "text/javascript; charset=utf-8"),
+        ("/icon-192.png", "icon-192.png", "image/png"),
+        ("/icon-512.png", "icon-512.png", "image/png"),
+    )}
     poll_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
@@ -239,8 +247,8 @@ def make_handler(cfg: Config):
 
         def do_GET(self):
             url = urlparse(self.path)
-            if url.path == "/":
-                return self._send(200, index_html, "text/html; charset=utf-8")
+            if url.path in files:
+                return self._send(200, *files[url.path])
             if url.path not in ("/api/series", "/api/workouts", "/api/settings"):
                 return self._json({"error": "not found"}, 404)
             conn = db.connect(cfg.db_path)

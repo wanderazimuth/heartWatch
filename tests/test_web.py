@@ -53,6 +53,15 @@ class WebTest(unittest.TestCase):
         with urllib.request.urlopen(self.base + "/") as r:
             self.assertIn(b"HeartWatch", r.read())
 
+    def test_app_files(self):
+        # What makes the page installable on the phone: the manifest, its icons and the service worker.
+        for path, kind in (("/manifest.webmanifest", "application/manifest+json"), ("/sw.js", "text/javascript"),
+                           ("/icon-192.png", "image/png"), ("/icon-512.png", "image/png")):
+            with urllib.request.urlopen(self.base + path) as r:
+                self.assertEqual(r.headers.get_content_type(), kind)
+        icons = self.get("/manifest.webmanifest")["icons"]
+        self.assertEqual({i["sizes"] for i in icons}, {"192x192", "512x512"})
+
     def test_series(self):
         d = self.get("/api/series")
         self.assertEqual(d["days"][0], "2026-10-01")

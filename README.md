@@ -40,6 +40,18 @@ Then open http://localhost:8081. Three tabs:
 poll. The dashboard has no login: anyone on the network who can reach the port can see your data and
 change types and settings.
 
+## On the phone
+
+Away from home the Pi is reached over Tailscale, which the
+[piServer](https://github.com/wanderazimuth/piServer) repo sets up: HeartWatch is at
+`https://raspberrypi.<tailnet>.ts.net`, for your signed-in devices only. Open that in Chrome on
+the phone and choose **Add to Home screen > Install**: HeartWatch then opens as its own app.
+
+The app keeps the page and the last data it loaded. When the Pi can't be reached (no signal, or
+Tailscale off) it opens with that saved copy, and a notice says when it was saved; it goes back to
+live data on its own. Settings, type changes and Update need the Pi. Installing needs HTTPS, so it
+works from the tailnet address, not http://heartwatch.lan.
+
 ## Heart rates and zones
 
 Resting, max and threshold heart rate come from your own data where there's enough of it, and
