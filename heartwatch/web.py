@@ -38,6 +38,8 @@ SECRET_QUERY = re.compile(r"([?&]key=)[^&\s]*")
 def redact(text: str) -> str:
     return SECRET_QUERY.sub(lambda m: m[1] + "***", text)
 SAFE_NAME = re.compile(r"[^A-Za-z0-9 ._()-]")
+# For the 80/20 readout: a session with this many minutes in zone 3 or above wasn't an easy one.
+HARD_SESSION_MINUTES = 10
 
 
 def series_json(conn, cfg: Config, today: date | None = None) -> dict:
@@ -60,6 +62,7 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     today = today or date.today()
     per_sport: dict[str, dict[date, load.Load]] = {s: {} for s in SPORTS}
     sessions: dict[str, dict[date, int]] = {s: {} for s in SPORTS}
+    hard_sessions: dict[str, dict[date, int]] = {s: {} for s in SPORTS}
     minutes: dict[str, dict[date, list[float]]] = {s: {} for s in SPORTS}  # per zone 1-5
     for w in ws:
         d, sport = w.start.date(), w.sport if w.sport in SPORTS else "other"
@@ -67,6 +70,8 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         per_sport[sport][d] += load.workout_load(w.hist, cfg)
         if store.is_workout(w, cfg):
             sessions[sport][d] = sessions[sport].get(d, 0) + 1
+            if sum(s for b, s in w.hist.items() if load.zone(b, cfg) >= 3) / 60 >= HARD_SESSION_MINUTES:
+                hard_sessions[sport][d] = hard_sessions[sport].get(d, 0) + 1
         for bpm, secs in w.hist.items():
             z = load.zone(bpm, cfg)
             if z:  # below zone 1 is standing around, not training
@@ -101,6 +106,8 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         "load": {s: {k: [r(getattr(per_sport[s].get(d.day, load.Load()), k)) for d in days]
                      for k in ("aerobic", "threshold", "anaerobic")} for s in SPORTS},
         "sessions": {s: [sessions[s].get(d.day, 0) for d in days] for s in SPORTS},
+        "hard_sessions": {s: [hard_sessions[s].get(d.day, 0) for d in days] for s in SPORTS},
+        "hard_session_minutes": HARD_SESSION_MINUTES,
         # Minutes in zones 1-5 each day, per workout type, for the time-in-zone bars.
         "zone_minutes": {s: [[round(minutes[s].get(d.day, [0.0] * 5)[z], 1) for d in days] for z in range(5)] for s in SPORTS},
         **baseline_json("rhr", rhr),

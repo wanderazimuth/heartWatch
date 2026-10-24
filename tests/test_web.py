@@ -62,6 +62,8 @@ class WebTest(unittest.TestCase):
         self.assertGreater(d["load"]["run"]["threshold"][i], 0)
         self.assertEqual(d["load"]["other"]["threshold"][i], 0)
         self.assertEqual(d["sessions"]["strength"][i + 1], 1)
+        # 80/20: the run's 20 minutes at 150 are zone 3, a hard session; the dumbbells at 120 are easy.
+        self.assertEqual((d["hard_sessions"]["run"][i], d["hard_sessions"]["strength"][i + 1]), (1, 0))
         self.assertEqual(d["peak_hr"]["bpm"], 150)
 
     def test_preview_does_not_save(self):
