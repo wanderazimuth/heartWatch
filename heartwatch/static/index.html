@@ -108,6 +108,12 @@
   .cards.compact .card.state { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; }
   .cards.compact #c-state { font-size: 17px !important; }
   .cards.compact #c-state-dot { width: 10px !important; height: 10px !important; }
+  details.about summary { width: fit-content; padding: 6px 0; cursor: pointer; list-style: none; color: var(--link); font-size: 14px; font-weight: 600; }
+  details.about summary::-webkit-details-marker { display: none; }
+  details.about summary::before { content: "▸ "; }
+  details.about[open] summary::before { content: "▾ "; }
+  details.about .t { display: flex; flex-direction: column; gap: 8px; max-width: 820px; }
+  details.about p { margin: 0; }
   button.details { min-height: 0; padding: 4px 6px; margin-left: 2px; border: 0; background: none; color: var(--link); font-size: inherit; }
   @media (max-width: 600px) { h1 { font-size: 22px; } }
   [hidden] { display: none !important; }
@@ -190,7 +196,7 @@
         </div>
         <div class="xlabels" id="f-x"></div>
         <div class="legend" style="font-size:13px;padding-left:42px" id="f-states"></div>
-        <div class="t">Training capacity is drawn on its own fixed scale: the dashed grey line is zero (balanced), the dotted red line is the overtraining-risk threshold. With load lines shown, the left axis widens to fit them.</div>
+        <details class="about" data-about="f"><summary>About this chart</summary><div class="t" id="f-text"></div></details>
       </section>
 
       <section class="panel">
@@ -214,7 +220,7 @@
           <div class="xlabels nr" id="r-x"></div>
         </div>
         <div class="empty" id="r-empty" hidden></div>
-        <div class="t" id="r-text"></div>
+        <details class="about" data-about="r"><summary>About this chart</summary><div class="t" id="r-text"></div></details>
       </section>
 
       <section class="panel">
@@ -240,7 +246,7 @@
           <div class="xlabels nr" id="s-x"></div>
         </div>
         <div class="empty" id="s-empty" hidden></div>
-        <div class="t" id="s-text"></div>
+        <details class="about" data-about="s"><summary>About this chart</summary><div class="t" id="s-text"></div></details>
       </section>
 
       <section class="panel">
@@ -283,7 +289,7 @@
           <div class="empty" id="p-empty" hidden></div>
           </div>
         </div>
-        <div class="t" id="m-text"></div>
+        <details class="about" data-about="m"><summary>About this chart</summary><div class="t" id="m-text"></div></details>
       </section>
 
       <section class="panel">
@@ -307,7 +313,7 @@
           <div class="xlabels nr" id="h-x"></div>
         </div>
         <div class="empty" id="h-empty" hidden></div>
-        <div class="t" id="h-text"></div>
+        <details class="about" data-about="h"><summary>About this chart</summary><div class="t" id="h-text"></div></details>
       </section>
       <div class="note" id="f-note"></div>
     </div>
@@ -334,6 +340,7 @@
           </svg></div></div>
         </div>
         <div class="xlabels nr" id="t-x1"></div>
+        <details class="about" data-about="t1"><summary>About this chart</summary><div class="t" id="t1-text"></div></details>
       </section>
       <section class="panel">
         <div class="head">
@@ -355,7 +362,7 @@
           </svg></div></div>
         </div>
         <div class="xlabels nr" id="z-x"></div>
-        <div class="t" id="z-text"></div>
+        <details class="about" data-about="z"><summary>About this chart</summary><div class="t" id="z-text"></div></details>
       </section>
       <section class="panel">
         <div class="head">
@@ -380,7 +387,7 @@
             <th class="num">Recovery</th><th class="num">Pace spread</th><th class="num">Drift</th><th>Not a test</th></tr></thead>
           <tbody id="pt-rows"></tbody>
         </table></div>
-        <div class="t" id="pt-text"></div>
+        <details class="about" data-about="pt"><summary>About this chart</summary><div class="t" id="pt-text"></div></details>
       </section>
       <section class="panel">
         <div class="head">
@@ -390,7 +397,7 @@
           <thead><tr><th>When</th><th class="num">Test</th><th class="num">Pace</th><th class="num">Threshold heart rate</th><th class="num">Peak</th><th>Not a test</th></tr></thead>
           <tbody id="tt-rows"></tbody>
         </table></div>
-        <div class="t" id="tt-text"></div>
+        <details class="about" data-about="tt"><summary>About this chart</summary><div class="t" id="tt-text"></div></details>
       </section>
     </div>
   </section>
@@ -564,6 +571,9 @@ function renderHeader() {
   $("last-ring").title = ringAgo >= 3 ? "No resting heart rate from the phone for 3 days or more: check the Health Connect app on the phone." : "";
 }
 
+// The note under a chart, as paragraphs (behind "About this chart"). Empty ones are skipped.
+const explain = (id, ...paras) => { $(id).innerHTML = paras.filter(Boolean).map((p) => `<p>${p}</p>`).join(""); };
+
 function renderFitness() {
   const d = S.data, n = d.days.length;
   pills($("f-ranges"), RANGES.map((r) => [r[0], r[0]]), S.fRange, (id) => { S.fRange = id; renderFitness(); });
@@ -644,6 +654,18 @@ function renderFitness() {
   $("f-states").innerHTML = `<span>Fitness state:</span>` + Object.entries(STATES).map(([k, [c]]) => `<span><i class="box" style="width:18px;height:10px;background:${c}"></i>${k}</span>`).join("");
   xLabels($("f-x"), lo, hi, span);
   const s = d.settings, dv = d.derived;
+  explain("f-text",
+    `<b>What it shows.</b> The thick line is your fitness score (left axis): long-term training load smoothed again over ${s.fitness_days} days, so it moves slowly and only climbs with weeks of steady training. `
+      + "The coloured line is training capacity (right axis): long-term load minus short-term load, plus the resting-heart-rate adjustment. "
+      + "Above the dashed zero line it turns green: you're fresher than your training base. Below it, orange: you're carrying more fatigue than your base is used to. "
+      + "The dotted red line, at −20, is where overtraining risk starts. The strip under the chart colours each day by its fitness state.",
+    "<b>How to read it.</b> Training harder than usual raises fitness and pulls capacity down at the same time; that dip is normal, it's how training works. "
+      + "What you want over months is a rising fitness line, with capacity a little below zero in hard weeks and back above it after easy ones. "
+      + "<i>+ Load lines</i> shows the two loads behind capacity: long-term (solid) is what your body is used to, short-term (dashed) is what you've done in the last week or so.",
+    "<b>Why it matters.</b> Fitness comes from training stress followed by recovery, and capacity tells you which side of that you're on. "
+      + "Weeks below zero without a rebound is how fatigue turns into illness, injury or stalled progress; weeks well above it mean you're rested but not training enough to improve. "
+      + "Put hard sessions on green days and easy days or rest on orange ones.",
+    "Capacity's scale is fixed, the same in every time range, so a colour at a given height always means the same. With load lines shown, the left axis widens to fit them.");
   const found = (k) => s[AUTO[k][0]] && dv[k].bpm != null && dv[k].used === dv[k].bpm;
   $("f-note").textContent = `Load is scored from heart rate alone (TRIMP, using heart rate reserve: resting ${s.resting_hr}${found("resting_hr") ? " from the ring" : ""}, `
     + `max ${s.max_hr}${found("max_hr") ? " from your workouts" : ""}; zones ${s.lthr ? `2–5 from your threshold heart rate, ${s.lthr}` : "as percentages of the reserve"}, zone 2 = ${d.zones[1][0]}–${d.zones[1][1]} bpm). `
@@ -733,10 +755,23 @@ function renderRing(lo, hi, span, t) {
   renderSleep(lo, hi, span, t, sleep);
   renderMovement(lo, hi, span, t);
   ringChart("rhr", "r", lo, hi, span, d.phone.last_rhr_day ? "No resting heart rate in this time range." : "No resting heart rate yet. It comes from the ring through Health Connect on your phone.");
-  $("r-text").textContent = `When your 7-day resting heart rate is above your normal range (tired, ill, run down), training capacity loses up to ${s.readiness_adjust_max} points; below it, it gains up to ${s.readiness_adjust_max}.`
-    + ` Your normal range comes from the 30 days before the current week, and the adjustment starts once ${d.min_baseline} of those have a reading.`;
+  explain("r-text",
+    "<b>What it shows.</b> Your resting heart rate each night from the ring (thin line), its 7-day average (thick line), and your normal range (green band), "
+      + "worked out from the 30 days before the current week, so this week can't move its own yardstick.",
+    "<b>Why it matters.</b> It's one of the simplest signs of how your body is coping. Over months it drifts down as aerobic fitness improves: a stronger heart moves the same blood in fewer beats. "
+      + "Day to day, a rise of 5 or more beats over your normal for several days usually means something is taxing you: a block of hard training, short sleep, an illness coming on, alcohol, heat or stress. "
+      + "One high night means little; a 7-day average above the band is worth listening to, often before you feel it.",
+    `<b>What HeartWatch does with it.</b> When the 7-day average is above your normal range, training capacity loses up to ${s.readiness_adjust_max} points; below it, capacity gains up to ${s.readiness_adjust_max}. `
+      + `The adjustment starts once ${d.min_baseline} of those 30 days have a reading.`);
   ringChart("hrv", "h", lo, hi, span, d.ring ? "No HRV in this time range." : "No HRV yet. Import a RingConn export on the Imports page.");
-  $("h-text").textContent = "From RingConn's manual data exports, which give a whole-day average: workouts and stressful days pull it down too. RingConn doesn't share HRV with Health Connect, so it is shown here but doesn't change training capacity.";
+  explain("h-text",
+    "<b>What it shows.</b> Heart-rate variability: how much the time between one heartbeat and the next varies, in milliseconds. "
+      + "The daily average from your RingConn exports (thin line), its 7-day average (thick line) and your normal range (green band).",
+    "<b>Why it matters.</b> A heart that varies its beat-to-beat timing is one the resting side of the nervous system is in charge of; that's what recovered looks like. "
+      + "A drop below your own normal for several days is an early sign of fatigue, illness or stress, often before resting heart rate moves, and HRV usually creeps up as fitness grows. "
+      + "It differs hugely between people and falls with age, so compare it only with your own range, never with someone else's number.",
+    "<b>Caveats.</b> RingConn's export gives a whole-day average rather than a night-time reading, so workouts and stressful days pull it down too. "
+      + "RingConn doesn't share HRV with Health Connect, so it only arrives with a manual export and doesn't change training capacity.");
 }
 
 const hm = (h) => { const m = Math.round(h * 60); return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`; };
@@ -767,10 +802,14 @@ function renderSleep(lo, hi, span, t, last) {
       + (st ? ` (light ${hm(st.light / 60)}, deep ${hm(st.deep / 60)}, REM ${hm(st.rem / 60)})` : "") + "."
       + (nights.length ? ` ${owed >= 0.5 ? `${hm(owed)} short of ${SLEEP_NEED} h a night` : `At least ${SLEEP_NEED} h a night`} over the last ${nights.length} nights.` : "");
   ringChart("sleep", "s", lo, hi, span, last ? "No sleep in this time range." : "No sleep yet. It comes from the ring through Health Connect on your phone.", 1, SLEEP_NEED);
-  $("s-text").textContent = `Time asleep is light + deep + REM, the same as RingConn's "Time Asleep", filed under the morning it ends (a nap before noon counts with the night before). `
-    + `The dashed line is ${SLEEP_NEED} hours: sports-medicine consensus recommends 7–9 for adults who train, and a run of shorter nights is linked to worse endurance and more injuries. `
-    + `Sleep isn't scored into training capacity: there's no validated formula for turning hours asleep into points, and the studies behind the 7-hour line measured groups, not your own night-to-night swings. `
-    + `When your week is both under ${SLEEP_NEED} hours and below your own normal range, the capacity tile shows ☾ as a reminder.`;
+  explain("s-text",
+    `<b>What it shows.</b> Hours asleep each night from the ring (thin line), the 7-day average (thick line), your normal range (green band) and a dashed line at ${SLEEP_NEED} hours. `
+      + `Time asleep is light + deep + REM, the same as RingConn's "Time Asleep", filed under the morning it ends (a nap before noon counts with the night before).`,
+    "<b>Why it matters.</b> Sleep is when most of the adapting to training happens: deep sleep is when growth hormone peaks and muscle repairs, and the nervous system recovers through the night. "
+      + `Sports-medicine consensus recommends 7–9 hours for adults who train, and a run of shorter nights is linked to worse endurance, slower reactions, more injuries and more colds. `
+      + "A shortfall adds up without you feeling it add up, so the 7-day average matters more than any one night.",
+    `<b>What HeartWatch does with it.</b> Nothing to the numbers: there's no validated formula for turning hours asleep into points, and the studies behind the ${SLEEP_NEED}-hour line measured groups, not your own night-to-night swings. `
+      + `When your week is both under ${SLEEP_NEED} hours and below your own normal range, the capacity tile shows ☾ as a reminder.`);
 }
 
 // The latest day with a 7-day average for key, at or before t.
@@ -795,11 +834,14 @@ function renderMovement(lo, hi, span, t) {
   const none = d.phone.configured ? "No steps in this time range." : "No steps yet. They come from the phone through Health Connect.";
   ringChart("brisk", "b", lo, hi, span, none, 5);
   ringChart("steps", "p", lo, hi, span, none, 1000, 8000);
-  $("m-text").textContent = "Brisk walking is any minute at 100 or more steps, the cadence research uses for moderate intensity, outside the strap's workouts (and 5 minutes either side). "
-    + "A burst is a stretch of it with no more than a minute's break. It counts only while the phone is with you, and stairs mostly don't count: climbing is hard work at a slow step rate. "
-    + "Steps come from the phone's own step counter, or from the ring on days the phone counted none; the two aren't added up, since that would count your walking twice. "
-    + "In the large pooled studies, the health benefit of more steps levelled off at roughly 6,000–8,000 a day for people over 60 and 8,000–10,000 for younger adults. "
-    + "Today is left out of the averages until it's over.";
+  explain("m-text",
+    "<b>What it shows.</b> Top: minutes a day of brisk walking, meaning any minute at 100 or more steps, the cadence research uses for moderate intensity, outside the strap's workouts (and 5 minutes either side). "
+      + "Bottom: all your steps each day, with a dashed line at 8,000. Thin lines are single days, thick lines 7-day averages, green bands your normal range. Today is left out of the averages until it's over.",
+    "<b>Why it matters.</b> Your workouts are an hour or so of the day; what you do with the rest adds up too. Regular walking helps recovery between hard sessions and is good for the heart and metabolism in its own right. "
+      + "In the large pooled studies, the health benefit of more steps levelled off at roughly 6,000–8,000 a day for people over 60 and 8,000–10,000 for younger adults, and in some, walking faster added benefit beyond the count itself. "
+      + "It's shown, not scored: it doesn't change load or capacity.",
+    "<b>Caveats.</b> A burst is a stretch of brisk walking with no more than a minute's break. It only counts while the phone is with you, and stairs mostly don't count: climbing is hard work at a slow step rate. "
+      + "Steps come from the phone's own step counter, or from the ring on days the phone counted none; the two aren't added up, since that would count your walking twice.");
 }
 
 function renderTrends() {
@@ -834,6 +876,15 @@ function renderTrends() {
       <div style="display:flex;align-items:baseline;gap:10px"><span class="v" style="font-size:34px">${Math.round(d[k][t])}</span><span style="font-weight:600;color:var(--muted)">${change(k)}</span></div>
       <div class="t">${text} ${Math.round(d[k][t] / total * 100)}% of your long-term load.</div></div>`).join("");
 
+  const s = d.settings;
+  explain("t1-text",
+    "<b>What it shows.</b> Your long-term load, split by the kind of effort it came from: aerobic base (zones 1–2), threshold (zones 3–4) and anaerobic (zone 5). "
+      + `Each is averaged over its own stretch, aerobic ${s.aerobic_days} days, threshold ${s.threshold_days} and anaerobic ${s.anaerobic_days}, because the body keeps aerobic fitness longest and loses top-end speed fastest. `
+      + "The tiles above give each one today, with its change over the time range.",
+    "<b>Why it matters.</b> The aerobic base is the foundation: it builds the heart, the small blood vessels and the muscles' ability to use oxygen, which every faster kind of running relies on. "
+      + "Threshold work raises the pace you can hold for an hour; anaerobic work sharpens speed but is the most tiring and fades quickest. "
+      + "A healthy build has the bottom band growing steadily, with thinner threshold and anaerobic layers on top. If the top bands grow while the base shrinks, you're running harder without the foundation to absorb it.");
+
   const [size, label] = BUCKETS[S.tRange];
   const sports = S.sport === "all" ? ["run", "strength", "other"] : [S.sport];
   renderZones(lo, hi, span, size, label, sports, axis);
@@ -861,11 +912,16 @@ function renderThresholdTests() {
     catch (e) { toast(e.message); box.disabled = false; }
   }));
   const hard = Math.round(s.resting_hr + 0.8 * (s.max_hr - s.resting_hr));
-  $("tt-text").textContent = "How to run one: warm up 10–15 minutes, press lap, then run 30 minutes alone, as hard as you can hold evenly to the end, on a flat route. "
-    + "Press lap at the end and cool down. Start a little easy rather than too hard: fading in the last 10 minutes reads low. "
-    + "Your threshold heart rate is the average of the last 20 minutes; in the first 10, heart rate is still catching up. "
-    + `A lap of 25–40 minutes counts as a test when that average is above 80% of your heart-rate reserve (${hard} bpm now); an easier one is a pace test. `
-    + "The newest test sets zones 2–5 at 85, 90, 95 and 100% of it. Every 6–8 weeks is plenty: it's a race effort, so take an easy day after.";
+  explain("tt-text",
+    "<b>What it shows.</b> Each row is a threshold test. Your threshold heart rate is the average over its last 20 minutes; in the first 10, heart rate is still catching up. Peak is the highest heart rate in the lap.",
+    "<b>Why it matters.</b> Threshold heart rate sits near the hardest effort you can hold for about an hour, where lactate starts building faster than your body clears it. "
+      + "It's personal: two people with the same max can have quite different thresholds. Setting zones from it makes easy and hard mean for you what they meant in the research. "
+      + "As you get fitter your pace at threshold rises while the heart rate itself changes little, so a new test mainly keeps your zones honest. "
+      + "The newest test sets zones 2–5 at 85, 90, 95 and 100% of it.",
+    "<b>How to run one.</b> Warm up 10–15 minutes, press lap, then run 30 minutes alone, as hard as you can hold evenly to the end, on a flat route. "
+      + "Press lap at the end and cool down. Start a little easy rather than too hard: fading in the last 10 minutes reads low. "
+      + `A lap of 25–40 minutes counts as a test when that average is above 80% of your heart-rate reserve (${hard} bpm now); an easier one is a pace test. `
+      + "Every 6–8 weeks is plenty: it's a race effort, so take an easy day after.");
 }
 
 // Pace tests: every one found, whatever the time range, since they're weeks apart.
@@ -917,12 +973,15 @@ function renderPaceTests() {
     try { await api(`/api/pacetests/${box.dataset.id}`, { not_test: box.checked }); await refresh(); }
     catch (e) { toast(e.message); box.disabled = false; }
   }));
-  $("pt-text").textContent = "How to run one: warm up 10 minutes, press lap, run 15–20 minutes at the same steady pace each time on a flat route, "
-    + "press lap and stop dead for a minute, with auto-pause off so the recording keeps going. "
-    + "Pace is the whole test lap, as the Wahoo app shows it; heart rate and beats per distance are over the test's last 10 minutes, once heart rate has settled. Recovery is how far heart rate fell in the minute after you stopped. "
-    + "Pace spread is how much your minute-by-minute pace varied; under 5% makes tests comparable. "
-    + "Drift is heart rate against pace from the first half of the test to the second; over 5% means the warm-up was short, or it was hot. "
-    + "Expect about 3% between tests from heat, sleep and fatigue alone, so trust a trend over three or four tests.";
+  explain("pt-text",
+    `<b>What it shows.</b> Each dot is a pace test: how many heartbeats it took to cover a ${unit === "mi" ? "mile" : "kilometre"} over the test's last 10 minutes, once heart rate had settled. Lower is fitter. The table lists every test found, whatever the time range.`,
+    "<b>Why it matters.</b> Fewer beats for the same ground means your heart moves more blood per beat and your muscles get more from the oxygen in it: aerobic fitness, measured directly instead of worked out from load. "
+      + "Load says how much training you did; the pace test says what it did for you. Expect about 3% between tests from heat, sleep and fatigue alone, so trust a trend over three or four tests.",
+    "<b>How to run one.</b> Warm up 10 minutes, press lap, run 15–20 minutes at the same steady pace each time on a flat route, "
+      + "press lap and stop dead for a minute, with auto-pause off so the recording keeps going. Every 2–4 weeks is enough.",
+    "<b>The columns.</b> Pace is the whole test lap, as the Wahoo app shows it; heart rate and beats per distance are over the last 10 minutes. Recovery is how far heart rate fell in the minute after you stopped; it grows with fitness. "
+      + "Pace spread is how much your minute-by-minute pace varied; under 5% makes tests comparable. "
+      + "Drift is heart rate against pace from the first half of the test to the second; over 5% means the warm-up was short, or it was hot.");
 }
 
 // Training per period, for the chosen workout types: load split by kind of effort, or minutes in
@@ -967,11 +1026,18 @@ function renderZones(lo, hi, span, size, label, sports, axis) {
     + `<span class="meter" role="img" aria-label="${easy}% easy; the mark is 80%"><i style="width:${easy}%"></i><b></b></span>`
     + `<span><b>${easy}%</b> easy</span>`;
   xLabels($("z-x"), lo, hi, span);
-  $("z-text").textContent = (S.bars === "load" ? "Load weighs time by how hard it was, so a hard hour counts for more than an easy one. "
-      : "Time below zone 1 (warm-ups, rests between sets) is left out. ")
-    + "80/20 is the share of time in zones 1–2; the mark is at 80%. "
-    + "In Seiler's studies, well-trained endurance athletes did about 80% of their training easy (the 80/20 rule). "
-    + (d.settings.lthr ? `Zones 2–5 are set from your threshold test (threshold heart rate ${d.settings.lthr}), so they follow your own threshold.`
+  const each = label.replace("per ", "");
+  explain("z-text",
+    `<b>What it shows.</b> Each bar is one ${each}, for the workout types picked above. `
+      + (S.bars === "load" ? "<i>Load</i> stacks the training load from aerobic base (zones 1–2), threshold (zones 3–4) and anaerobic (zone 5) work. Load weighs time by how hard it was, so a hard hour counts for much more than an easy one: it's the best single measure of how much training you did. "
+        : S.bars === "5" ? "<i>5 zones</i> stacks the minutes you spent in each heart-rate zone. Time below zone 1 (warm-ups, rests between sets) is left out. "
+        : "<i>Time</i> stacks the minutes you spent easy (zones 1–2), moderate (zones 3–4) and hard (zone 5). Time below zone 1 (warm-ups, rests between sets) is left out. ")
+      + "The percentages in the legend are each part's share of the whole time range.",
+    `<b>80/20.</b> The line above the chart is the share of your time in zones 1–2 over the whole range, whatever the bars show, against a mark at 80%. `
+      + "In Seiler's studies, well-trained endurance athletes did about 80% of their training easy and most of the rest hard, and in training studies runners who trained this way improved at least as much as those who spent their time in the middle. "
+      + "Easy running builds the aerobic base with little fatigue, which leaves you fresh for the hard sessions that do the sharpening. "
+      + `The usual mistake is easy days run too fast and hard days not hard enough, which piles up zone 3 time that tires you without much extra gain. If you're well under 80%, slow your easy runs down: easy is under ${d.zones[2][0]} bpm now.`,
+    d.settings.lthr ? `Zones 2–5 are set from your threshold test (threshold heart rate ${d.settings.lthr}), so they follow your own threshold.`
       : "The zones are fixed percentages of heart-rate reserve, so where your own thresholds fall can shift a few minutes between neighbouring zones. A threshold test (below) sets them from your own.");
 }
 
@@ -1119,6 +1185,16 @@ function showDetails(on) {
 document.querySelectorAll("button.details").forEach((b) =>
   b.onclick = () => showDetails(b.getAttribute("aria-expanded") !== "true"));
 try { showDetails(localStorage.getItem("hw-details") === "1"); } catch { showDetails(false); }
+// Which "About this chart" notes are open, remembered on this device.
+let aboutOpen = [];
+try { aboutOpen = JSON.parse(localStorage.getItem("hw-about") || "[]"); } catch {}
+document.querySelectorAll("details.about").forEach((el) => {
+  el.open = aboutOpen.includes(el.dataset.about);
+  el.ontoggle = () => {
+    aboutOpen = aboutOpen.filter((k) => k !== el.dataset.about).concat(el.open ? [el.dataset.about] : []);
+    try { localStorage.setItem("hw-about", JSON.stringify(aboutOpen)); } catch {}
+  };
+});
 $("toggle-loads").onclick = () => { S.showLoads = !S.showLoads; renderFitness(); };
 $("w-all").onchange = (e) => { S.showAll = e.target.checked; renderImports(); };
 $("w-more").onclick = () => { S.rows += 200; renderImports(); };
