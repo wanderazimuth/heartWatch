@@ -85,8 +85,9 @@
   td.num, th.num { text-align: right; }
   tr.leftover td { color: var(--soft); }
   select { font: inherit; min-height: 36px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
-  /* 80/20 readout: how much is easy, with a mark at 80%. */
-  .meter { position: relative; display: inline-block; width: 140px; height: 10px; border-radius: 3px; background: var(--grid); vertical-align: middle; }
+  /* 80/20 readout: how much is easy, with a mark at 80%. One line, even on a phone. */
+  #z-8020 { flex-wrap: nowrap; align-items: center; gap: 10px; white-space: nowrap; }
+  .meter { position: relative; display: inline-block; width: 140px; flex: 0 1 140px; height: 10px; border-radius: 3px; background: var(--grid); vertical-align: middle; }
   .meter i { display: block; height: 100%; border-radius: 3px; background: var(--aer); }
   .meter b { position: absolute; left: 80%; top: -3px; bottom: -3px; width: 2px; background: var(--text); }
   .zbar { display: inline-flex; width: 120px; height: 10px; border-radius: 3px; overflow: hidden; background: var(--grid); vertical-align: middle; }
@@ -988,18 +989,15 @@ function renderZones(lo, hi, span, size, label, sports, axis) {
   const pct = (m) => all ? Math.round(m / all * 100) + "%" : "–";
   $("z-legend").innerHTML = groups.map(([name, c], g) => `<span><i class="box" style="background:${c}"></i>${name} <b>${pct(totals[g])}</b></span>`).join("");
   $("z-sum").textContent = all ? `${hm(all / 60)} in zones 1–5 in this range.` : "No time in zones 1–5 in this range.";
-  // 80/20: easy sessions by count, as Seiler counted them, and easy (zones 1-2) time, each against 80%.
-  const count = (key) => sports.reduce((u, sp) => u + d[key][sp].slice(lo, hi).reduce((a, b) => a + b, 0), 0);
-  const n = count("sessions"), easy = n - count("hard_sessions"), easyTime = mins([0, 1], lo, hi);
-  const what = S.sport === "run" ? "runs" : S.sport === "strength" ? "dumbbell sessions" : "sessions";
-  const meter = (label, pct, detail) => `<span>${label}</span><span class="meter" role="img" aria-label="${pct}% easy; the mark is 80%"><i style="width:${pct}%"></i><b></b></span><span><b>${pct}%</b> ${detail}</span>`;
-  $("z-8020").innerHTML = !n || !all ? "" : `<span style="font-weight:600">80/20:</span>`
-    + meter(`easy ${what}`, Math.round(easy / n * 100), `(${easy} of ${n})`)
-    + meter("easy time", Math.round(easyTime / all * 100), "in zones 1–2");
+  // 80/20: the share of time in zones 1-2, against a mark at 80%.
+  const easy = all ? Math.round(mins([0, 1], lo, hi) / all * 100) : 0;
+  $("z-8020").innerHTML = !all ? "" : `<span style="font-weight:600">80/20</span>`
+    + `<span class="meter" role="img" aria-label="${easy}% easy; the mark is 80%"><i style="width:${easy}%"></i><b></b></span>`
+    + `<span><b>${easy}%</b> easy</span>`;
   xLabels($("z-x"), lo, hi, span);
   $("z-text").textContent = "Time below zone 1 (warm-ups, rests between sets) is left out. "
-    + `80/20: a session is easy with under ${d.hard_session_minutes} minutes in zone 3 or above; the mark on each bar is 80% easy. `
-    + "In Seiler's studies, well-trained endurance athletes did about 80% of their sessions easy (the 80/20 rule); the readout above counts both sessions and minutes. "
+    + "80/20 is the share of time in zones 1–2; the mark is at 80%. "
+    + "In Seiler's studies, well-trained endurance athletes did about 80% of their training easy (the 80/20 rule). "
     + (d.settings.lthr ? `Zones 2–5 are set from your threshold test (threshold heart rate ${d.settings.lthr}), so they follow your own threshold.`
       : "The zones are fixed percentages of heart-rate reserve, so where your own thresholds fall can shift a few minutes between neighbouring zones. A threshold test (below) sets them from your own.");
 }
