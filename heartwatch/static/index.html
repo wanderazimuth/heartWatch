@@ -337,30 +337,17 @@
       </section>
       <section class="panel">
         <div class="head">
-          <div><h2 id="t-bars-title">Training load</h2><div class="t" id="t-sessions"></div></div>
+          <div><h2 id="z-title">Training</h2><div class="t" id="z-sum"></div></div>
           <div class="pills" role="group" aria-label="Workout type" id="t-sports"></div>
         </div>
-        <div class="chart">
-          <div class="axis" style="height:240px" id="t-axis2"></div>
-          <div class="plot"><div style="height:240px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Training load per period, stacked by kind of effort">
-            <line x1="0" y1="20" x2="1000" y2="20" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
-            <line x1="0" y1="155" x2="1000" y2="155" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
-            <line x1="0" y1="290" x2="1000" y2="290" stroke="var(--border)" vector-effect="non-scaling-stroke"/>
-            <path id="t-baer" fill="var(--aer)"/><path id="t-bthr" fill="var(--thr)"/><path id="t-bana" fill="var(--ana)"/>
-          </svg></div></div>
-        </div>
-        <div class="xlabels nr" id="t-x2"></div>
-      </section>
-      <section class="panel">
         <div class="head">
-          <div><h2 id="z-title">Time in zone</h2><div class="t" id="z-sum"></div></div>
-          <div class="pills" role="group" aria-label="Zones" id="z-mode"></div>
+          <div class="legend" id="z-legend"></div>
+          <div class="pills" role="group" aria-label="Measure" id="z-mode"></div>
         </div>
-        <div class="legend" id="z-legend"></div>
         <div class="zones" id="z-8020"></div>
         <div class="chart">
           <div class="axis" style="height:240px" id="z-axis"></div>
-          <div class="plot"><div style="height:240px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Minutes in each heart-rate zone per period, stacked">
+          <div class="plot"><div style="height:240px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Training load or minutes in each heart-rate zone per period, stacked">
             <line x1="0" y1="20" x2="1000" y2="20" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
             <line x1="0" y1="155" x2="1000" y2="155" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
             <line x1="0" y1="290" x2="1000" y2="290" stroke="var(--border)" vector-effect="non-scaling-stroke"/>
@@ -492,8 +479,8 @@ function zoneEdges(rest, max, lthr) {
   return [z1, ...rest4, max];
 }
 const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
-            settings: null, draft: null, showAll: false, rows: 100, zones: "3" };
-try { if (localStorage.getItem("hw-zones") === "5") S.zones = "5"; } catch {}
+            settings: null, draft: null, showAll: false, rows: 100, bars: "load" };
+try { const b = localStorage.getItem("hw-bars") || (localStorage.getItem("hw-zones") === "5" ? "5" : ""); if (["load", "3", "5"].includes(b)) S.bars = b; } catch {}
 S.units = "mi";
 try { if (localStorage.getItem("hw-units") === "km") S.units = "km"; } catch {}
 const MILE = 1.609344;
@@ -849,31 +836,6 @@ function renderTrends() {
 
   const [size, label] = BUCKETS[S.tRange];
   const sports = S.sport === "all" ? ["run", "strength", "other"] : [S.sport];
-  const sums = [];
-  for (let i = lo; i < hi; i += size) {
-    const e = Math.min(i + size, hi), s = { a: 0, t: 0, n: 0 };
-    for (const sp of sports) for (let j = i; j < e; j++) {
-      s.a += d.load[sp].aerobic[j]; s.t += d.load[sp].threshold[j]; s.n += d.load[sp].anaerobic[j];
-    }
-    sums.push(s);
-  }
-  const bMax = nice(Math.max(1, ...sums.map((b) => b.a + b.t + b.n)) * 1.1, 10);
-  const bw = 1000 / sums.length, paths = { a: "", t: "", n: "" };
-  sums.forEach((b, i) => {
-    let base = 0;
-    const x = (i * bw + bw * 0.14).toFixed(1), w = (bw * 0.72).toFixed(1);
-    for (const k of ["a", "t", "n"]) {
-      const h = b[k] / bMax * 270;
-      if (h > 0) paths[k] += `M${x} ${(290 - base - h).toFixed(1)}h${w}v${h.toFixed(1)}h-${w}Z`;
-      base += h;
-    }
-  });
-  $("t-baer").setAttribute("d", paths.a); $("t-bthr").setAttribute("d", paths.t); $("t-bana").setAttribute("d", paths.n);
-  $("t-axis2").innerHTML = axis(bMax);
-  $("t-bars-title").textContent = `Training load ${label}`;
-  const count = (sp) => d.sessions[sp].slice(lo, hi).reduce((u, v) => u + v, 0);
-  $("t-sessions").textContent = `${count("run")} runs and ${count("strength")} dumbbell sessions in this range` + (count("other") ? `, plus ${count("other")} untyped` : "");
-  xLabels($("t-x2"), lo, hi, span);
   renderZones(lo, hi, span, size, label, sports, axis);
   renderPaceTests();
   renderThresholdTests();
@@ -963,20 +925,27 @@ function renderPaceTests() {
     + "Expect about 3% between tests from heat, sleep and fatigue alone, so trust a trend over three or four tests.";
 }
 
-// Time in zone: the same periods and workout types as the load bars, counted in minutes rather than load.
-// Three zones follow HeartWatch's own split (and the usual easy / in-between / hard model); five are the plain zones.
+// Training per period, for the chosen workout types: load split by kind of effort, or minutes in
+// three zones (HeartWatch's own split, and the usual easy / in-between / hard model) or all five.
 function renderZones(lo, hi, span, size, label, sports, axis) {
   const d = S.data;
-  pills($("z-mode"), [["3", "3 zones"], ["5", "5 zones"]], S.zones, (id) => {
-    S.zones = id;
-    try { localStorage.setItem("hw-zones", id); } catch {}
+  pills($("z-mode"), [["load", "Load"], ["3", "Time"], ["5", "5 zones"]], S.bars, (id) => {
+    S.bars = id;
+    try { localStorage.setItem("hw-bars", id); } catch {}
     renderTrends();
   });
-  const groups = S.zones === "5" ? ZONE_COLOURS.slice(1).map((c, z) => [`Zone ${z + 1}`, c, [z]])
-    : [["Easy, zones 1–2", "var(--aer)", [0, 1]], ["Moderate, zones 3–4", "var(--thr)", [2, 3]], ["Hard, zone 5", "var(--ana)", [4]]];
-  const mins = (zs, i, e) => sports.reduce((u, sp) => u + zs.reduce((v, z) => v + d.zone_minutes[sp][z].slice(i, e).reduce((a, b) => a + b, 0), 0), 0);
+  const sum = (xs, i, e) => xs.slice(i, e).reduce((a, b) => a + b, 0);
+  const mins = (zs, i, e) => sports.reduce((u, sp) => u + zs.reduce((v, z) => v + sum(d.zone_minutes[sp][z], i, e), 0), 0);
+  const loadOf = (k, i, e) => sports.reduce((u, sp) => u + sum(d.load[sp][k], i, e), 0);
+  // [name, colour, value over days i..e]
+  const groups = S.bars === "load"
+    ? [["Aerobic base", "var(--aer)", "aerobic"], ["Threshold", "var(--thr)", "threshold"], ["Anaerobic", "var(--ana)", "anaerobic"]]
+      .map(([n, c, k]) => [n, c, (i, e) => loadOf(k, i, e)])
+    : S.bars === "5" ? ZONE_COLOURS.slice(1).map((c, z) => [`Zone ${z + 1}`, c, (i, e) => mins([z], i, e)])
+    : [["Easy, zones 1–2", "var(--aer)", [0, 1]], ["Moderate, zones 3–4", "var(--thr)", [2, 3]], ["Hard, zone 5", "var(--ana)", [4]]]
+      .map(([n, c, zs]) => [n, c, (i, e) => mins(zs, i, e)]);
   const sums = [];
-  for (let i = lo; i < hi; i += size) sums.push(groups.map(([, , zs]) => mins(zs, i, Math.min(i + size, hi))));
+  for (let i = lo; i < hi; i += size) sums.push(groups.map(([, , v]) => v(i, Math.min(i + size, hi))));
   const zMax = nice(Math.max(1, ...sums.map((b) => b.reduce((u, v) => u + v, 0))) * 1.1, 10);
   const bw = 1000 / sums.length, x = (i) => (i * bw + bw * 0.14).toFixed(1), w = (bw * 0.72).toFixed(1);
   $("z-bars").innerHTML = groups.map(([name, c], g) => `<path fill="${c}" d="${sums.map((b, i) => {
@@ -984,18 +953,22 @@ function renderZones(lo, hi, span, size, label, sports, axis) {
     return h > 0 ? `M${x(i)} ${(290 - base - h).toFixed(1)}h${w}v${h.toFixed(1)}h-${w}Z` : "";
   }).join("")}"><title>${name}</title></path>`).join("");
   $("z-axis").innerHTML = axis(zMax);
-  $("z-title").textContent = `Time in zone, minutes ${label}`;
-  const totals = groups.map(([, , zs]) => mins(zs, lo, hi)), all = totals.reduce((u, v) => u + v, 0);
+  $("z-title").textContent = S.bars === "load" ? `Training load ${label}` : `Time in zone, minutes ${label}`;
+  const totals = groups.map(([, , v]) => v(lo, hi)), all = totals.reduce((u, v) => u + v, 0);
   const pct = (m) => all ? Math.round(m / all * 100) + "%" : "–";
   $("z-legend").innerHTML = groups.map(([name, c], g) => `<span><i class="box" style="background:${c}"></i>${name} <b>${pct(totals[g])}</b></span>`).join("");
-  $("z-sum").textContent = all ? `${hm(all / 60)} in zones 1–5 in this range.` : "No time in zones 1–5 in this range.";
-  // 80/20: the share of time in zones 1-2, against a mark at 80%.
-  const easy = all ? Math.round(mins([0, 1], lo, hi) / all * 100) : 0;
-  $("z-8020").innerHTML = !all ? "" : `<span style="font-weight:600">80/20</span>`
+  const count = (sp) => d.sessions[sp].slice(lo, hi).reduce((u, v) => u + v, 0);
+  const zoneMins = mins([0, 1, 2, 3, 4], lo, hi);
+  $("z-sum").textContent = `${count("run")} runs and ${count("strength")} dumbbell sessions` + (count("other") ? `, plus ${count("other")} untyped` : "")
+    + (zoneMins ? `; ${hm(zoneMins / 60)} in zones 1–5.` : ".");
+  // 80/20: the share of time in zones 1-2, against a mark at 80%, whatever the bars show.
+  const easy = zoneMins ? Math.round(mins([0, 1], lo, hi) / zoneMins * 100) : 0;
+  $("z-8020").innerHTML = !zoneMins ? "" : `<span style="font-weight:600">80/20</span>`
     + `<span class="meter" role="img" aria-label="${easy}% easy; the mark is 80%"><i style="width:${easy}%"></i><b></b></span>`
     + `<span><b>${easy}%</b> easy</span>`;
   xLabels($("z-x"), lo, hi, span);
-  $("z-text").textContent = "Time below zone 1 (warm-ups, rests between sets) is left out. "
+  $("z-text").textContent = (S.bars === "load" ? "Load weighs time by how hard it was, so a hard hour counts for more than an easy one. "
+      : "Time below zone 1 (warm-ups, rests between sets) is left out. ")
     + "80/20 is the share of time in zones 1–2; the mark is at 80%. "
     + "In Seiler's studies, well-trained endurance athletes did about 80% of their training easy (the 80/20 rule). "
     + (d.settings.lthr ? `Zones 2–5 are set from your threshold test (threshold heart rate ${d.settings.lthr}), so they follow your own threshold.`
