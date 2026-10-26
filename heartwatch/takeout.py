@@ -40,6 +40,9 @@ class Activity:
             return "strength"
         if "running" in names or "treadmill" in names:
             return "run"
+        # Stair sessions are climbing on foot, the same training as a hike.
+        if "hiking" in names or "stair" in names:
+            return "hike"
         return "other"
 
 

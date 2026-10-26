@@ -38,9 +38,10 @@ class ParseTest(unittest.TestCase):
             "2024-03-06T18_02_44.204-06_00_PT46M18.572S_Running.tcx",
             "2024-03-05T07_15_22-06_00_PT1H2M_Walking,Running.tcx",
             "2024-03-07T07_00_00-06_00_PT0S_.tcx",
+            "2024-03-08T19_00_00-06_00_PT20M_Stair climbing.tcx",
         ])
         acts = takeout.activities([z])
-        self.assertEqual([a.sport for a in acts], ["strength", "run", "run"])
+        self.assertEqual([a.sport for a in acts], ["strength", "run", "run", "hike"])
         self.assertEqual(acts[0].start, datetime(2024, 3, 4, 13, 15, 39, tzinfo=timezone.utc).timestamp())
         self.assertAlmostEqual(acts[0].end - acts[0].start, 30 * 60 + 3)
         self.assertAlmostEqual(acts[1].end - acts[1].start, 62 * 60)  # sorted by date

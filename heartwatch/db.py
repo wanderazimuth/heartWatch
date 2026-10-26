@@ -93,8 +93,11 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
-    # Hikes and walks were "other" before hike was a type of its own (fit.SPORTS).
+    # Hikes, walks and stair sessions were "other" before hike was a type of its own
+    # (fit.SPORTS, takeout.Activity.sport).
     with conn:
         conn.execute("UPDATE workouts SET sport = 'hike' WHERE source = 'fit' AND sport = 'other'"
                      " AND (detail IN ('hiking', 'walking') OR detail LIKE 'hiking/%' OR detail LIKE 'walking/%')")
+        conn.execute("UPDATE workouts SET sport = 'hike' WHERE source = 'takeout' AND sport = 'other'"
+                     " AND (detail LIKE '%hiking%' OR detail LIKE '%stair%')")
     return conn
