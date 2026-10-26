@@ -25,7 +25,7 @@ from .config import Config
 
 log = logging.getLogger(__name__)
 
-SPORTS = ("run", "strength", "other")
+SPORTS = ("run", "strength", "hike", "other")
 WORKOUT_PATH = re.compile(r"/api/workouts/(\d+)/sport")
 PACE_TEST_PATH = re.compile(r"/api/pacetests/(\d+)")
 THRESHOLD_TEST_PATH = re.compile(r"/api/thresholdtests/(\d+)")
@@ -308,7 +308,7 @@ def make_handler(cfg: Config):
                     return self._json({"error": "not found"}, 404)
                 sport = body.get("sport")
                 if sport is not None and sport not in SPORTS:
-                    return self._json({"error": "sport must be run, strength, other or null"}, 400)
+                    return self._json({"error": "sport must be run, strength, hike, other or null"}, 400)
                 row = conn.execute("SELECT start, end FROM workouts WHERE id = ?", (int(m.group(1)),)).fetchone()
                 if row is None:
                     return self._json({"error": "unknown workout"}, 404)

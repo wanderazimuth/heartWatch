@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS workouts (
     id INTEGER PRIMARY KEY,
     start INTEGER NOT NULL,          -- unix seconds, UTC
     end INTEGER NOT NULL,
-    sport TEXT NOT NULL,             -- run / strength / other, as read from the file
+    sport TEXT NOT NULL,             -- run / strength / hike / other, as read from the file
     sport_override TEXT,             -- set by hand when the file got it wrong
     source TEXT NOT NULL,            -- 'fit', later 'takeout'
     source_ref TEXT NOT NULL UNIQUE, -- sha256 of the file, so re-imports are skipped
@@ -93,4 +93,8 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
+    # Hikes and walks were "other" before hike was a type of its own (fit.SPORTS).
+    with conn:
+        conn.execute("UPDATE workouts SET sport = 'hike' WHERE source = 'fit' AND sport = 'other'"
+                     " AND (detail IN ('hiking', 'walking') OR detail LIKE 'hiking/%' OR detail LIKE 'walking/%')")
     return conn

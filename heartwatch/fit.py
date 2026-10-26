@@ -8,14 +8,15 @@ from typing import BinaryIO
 import fitdecode
 
 # FIT sport names -> HeartWatch workout types.
-SPORTS = {"running": "run", "training": "strength", "fitness_equipment": "strength"}
+SPORTS = {"running": "run", "training": "strength", "fitness_equipment": "strength",
+          "hiking": "hike", "walking": "hike"}
 
 
 @dataclass
 class Recording:
     start: datetime
     end: datetime
-    sport: str  # "run", "strength" or "other"
+    sport: str  # "run", "strength", "hike" or "other"
     fit_sport: str  # what the file said, for the record
     hr: list[tuple[float, int]] = field(default_factory=list)  # (seconds from start, bpm)
 

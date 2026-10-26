@@ -25,6 +25,10 @@ class ReadTest(unittest.TestCase):
         self.assertEqual(rec.sport, "strength")
         self.assertEqual(rec.fit_sport, "training/strength_training")
 
+    def test_hike(self):
+        self.assertEqual(fit.read(io.BytesIO(write(START, [110] * 40, "hiking"))).sport, "hike")
+        self.assertEqual(fit.read(io.BytesIO(write(START, [110] * 40, "walking"))).sport, "hike")
+
     def test_unknown_sport_is_other(self):
         self.assertEqual(fit.read(io.BytesIO(write(START, [110] * 40, "generic"))).sport, "other")
 
@@ -90,6 +94,18 @@ class ImportTest(unittest.TestCase):
         store.import_fit(self.conn, self.cfg, "a.fit", write(START, [120] * 40))
         self.conn.execute("UPDATE workouts SET sport_override = 'strength'")
         self.assertEqual(store.workouts(self.conn)[0].sport, "strength")
+
+    def test_old_hikes_become_hikes(self):
+        # Imported as "other" before hike was a type; connecting again types them.
+        path = Path(self.tmp.name) / "old.db"
+        conn = db.connect(path)
+        store.import_fit(conn, self.cfg, "hike.fit", write(START, [110] * 1200, "hiking"))
+        conn.execute("UPDATE workouts SET sport = 'other'")
+        conn.commit()
+        conn.close()
+        conn = db.connect(path)
+        self.addCleanup(conn.close)
+        self.assertEqual(conn.execute("SELECT sport FROM workouts").fetchone()[0], "hike")
 
     def test_zip_and_folder(self):
         folder = Path(self.tmp.name) / "in"

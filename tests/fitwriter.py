@@ -5,7 +5,7 @@ import struct
 from datetime import datetime, timezone
 
 FIT_EPOCH = datetime(1989, 12, 31, tzinfo=timezone.utc)
-SPORTS = {"generic": 0, "running": 1, "training": 10}
+SPORTS = {"generic": 0, "running": 1, "training": 10, "walking": 11, "hiking": 17}
 SUB_SPORTS = {"generic": 0, "treadmill": 1, "strength_training": 20}
 
 CRC_TABLE = [0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401,

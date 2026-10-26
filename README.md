@@ -31,7 +31,7 @@ Then open http://localhost:8081. Three tabs:
 - **Fitness**: fitness score (left axis) and training capacity (right axis) on one chart, the fitness
   state strip along the bottom, and long-term and short-term load on demand.
 - **Training Trends**: long-term load split into aerobic, threshold and anaerobic, and load per
-  day / week / month for all workouts, runs or dumbbells.
+  day / week / month for all workouts, runs, dumbbells or hikes (the Wahoo app's Hiking and Walking).
 - **Imports**: every workout with its type (change it when the file got it wrong), and the settings
   (resting and max heart rate, averaging windows). Settings saved here are kept in the database and
   override `config.toml`; "Reset to config.toml" drops them.

@@ -436,7 +436,7 @@
         <div class="head"><h2>Workouts <small id="w-count"></small></h2>
           <label class="t" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="w-all"> Show strap leftovers</label>
         </div>
-        <div class="t">Change a type when the file got it wrong: the type decides the Runs / Dumbbells filter, and which of two overlapping recordings counts the shared minutes.</div>
+        <div class="t">Change a type when the file got it wrong: the type decides the Runs / Dumbbells / Hikes filter, and which of two overlapping recordings counts the shared minutes.</div>
         <div class="table-wrap"><table>
           <thead><tr><th>When</th><th>Type</th><th>Recorded by</th><th class="num">Min</th><th class="num">Avg</th><th class="num">Peak</th><th class="num">Load</th><th>Zones 1–5</th></tr></thead>
           <tbody id="w-rows"></tbody>
@@ -459,7 +459,7 @@ const STATES = {
   "Detraining": ["#c9a227", "Long-term load is falling. Fitness fades if this lasts more than a couple of weeks."],
   "Overtraining risk": ["#c0262d", "Fatigue is far above your base. Back off for a few days."],
 };
-const SPORT_NAMES = { run: "Run", strength: "Dumbbells", other: "Other" };
+const SPORT_NAMES = { run: "Run", strength: "Dumbbells", hike: "Hike", other: "Other" };
 const KNOBS = [
   ["resting_hr", "Resting heart rate", 1, "bpm", "Your heart rate at rest."],
   ["max_hr", "Max heart rate", 1, "bpm", "The highest your heart rate goes."],
@@ -847,7 +847,7 @@ function renderMovement(lo, hi, span, t) {
 function renderTrends() {
   const d = S.data, n = d.days.length;
   pills($("t-ranges"), RANGES.map((r) => [r[0], r[0]]), S.tRange, (id) => { S.tRange = id; renderTrends(); });
-  pills($("t-sports"), [["all", "All"], ["run", "Runs"], ["strength", "Dumbbells"]], S.sport, (id) => { S.sport = id; renderTrends(); });
+  pills($("t-sports"), [["all", "All"], ["run", "Runs"], ["strength", "Dumbbells"], ["hike", "Hikes"]], S.sport, (id) => { S.sport = id; renderTrends(); });
   if (!n) return;
   const span = RANGES.find((r) => r[0] === S.tRange)[1];
   const [lo, hi] = window_(span), t = hi - 1;
@@ -867,7 +867,7 @@ function renderTrends() {
   const total = d.ltl[t] || 1;
   const change = (k) => { const then = d[k][lo]; if (!then) return ""; const c = Math.round((d[k][t] - then) / then * 100); return (c > 0 ? "+" : c < 0 ? "−" : "") + Math.abs(c) + "%"; };
   const dims = [
-    ["Aerobic base", "--aer", "ltl_aerobic", "Zones 1–2: easy running and your dumbbell sessions."],
+    ["Aerobic base", "--aer", "ltl_aerobic", "Zones 1–2: easy running, hikes and your dumbbell sessions."],
     ["Threshold", "--thr", "ltl_threshold", "Zones 3–4: steady-hard running and hills."],
     ["Anaerobic", "--ana", "ltl_anaerobic", "Zone 5: finishing kicks and all-out efforts."],
   ];
@@ -886,7 +886,7 @@ function renderTrends() {
       + "A healthy build has the bottom band growing steadily, with thinner threshold and anaerobic layers on top. If the top bands grow while the base shrinks, you're running harder without the foundation to absorb it.");
 
   const [size, label] = BUCKETS[S.tRange];
-  const sports = S.sport === "all" ? ["run", "strength", "other"] : [S.sport];
+  const sports = S.sport === "all" ? ["run", "strength", "hike", "other"] : [S.sport];
   renderZones(lo, hi, span, size, label, sports, axis);
   renderPaceTests();
   renderThresholdTests();
@@ -1018,7 +1018,9 @@ function renderZones(lo, hi, span, size, label, sports, axis) {
   $("z-legend").innerHTML = groups.map(([name, c], g) => `<span><i class="box" style="background:${c}"></i>${name} <b>${pct(totals[g])}</b></span>`).join("");
   const count = (sp) => d.sessions[sp].slice(lo, hi).reduce((u, v) => u + v, 0);
   const zoneMins = mins([0, 1, 2, 3, 4], lo, hi);
-  $("z-sum").textContent = `${count("run")} runs and ${count("strength")} dumbbell sessions` + (count("other") ? `, plus ${count("other")} untyped` : "")
+  const n = (k, one, many) => `${count(k)} ${count(k) === 1 ? one : many}`;
+  const kinds = [n("run", "run", "runs"), n("strength", "dumbbell session", "dumbbell sessions")].concat(count("hike") ? [n("hike", "hike", "hikes")] : []);
+  $("z-sum").textContent = kinds.slice(0, -1).join(", ") + " and " + kinds[kinds.length - 1] + (count("other") ? `, plus ${count("other")} untyped` : "")
     + (zoneMins ? `; ${hm(zoneMins / 60)} in zones 1–5.` : ".");
   // 80/20: the share of time in zones 1-2, against a mark at 80%, whatever the bars show.
   const easy = zoneMins ? Math.round(mins([0, 1], lo, hi) / zoneMins * 100) : 0;
@@ -1098,7 +1100,7 @@ function renderImports() {
     $("w-rows").innerHTML = all.slice(0, S.rows).map((w) => {
       const zt = w.zone_minutes.slice(1).reduce((u, v) => u + v, 0) || 1;
       const bar = w.zone_minutes.slice(1).map((m, i) => `<i style="width:${m / zt * 100}%;background:${zc[i + 1]}"></i>`).join("");
-      const opts = ["run", "strength", "other"].map((s) => `<option value="${s}"${s === w.sport ? " selected" : ""}>${SPORT_NAMES[s]}</option>`).join("");
+      const opts = ["run", "strength", "hike", "other"].map((s) => `<option value="${s}"${s === w.sport ? " selected" : ""}>${SPORT_NAMES[s]}</option>`).join("");
       const when = new Date(w.start).toLocaleString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
       return `<tr class="${w.workout ? "" : "leftover"}"><td>${when}</td>
         <td><select data-id="${w.id}" data-file="${w.file_sport}" aria-label="Workout type">${opts}</select>${w.overridden ? ' <span class="t" title="Changed by hand">✎</span>' : ""}</td>

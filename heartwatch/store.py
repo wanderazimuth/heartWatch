@@ -149,7 +149,7 @@ def samples(cfg: Config, row: sqlite3.Row) -> list[tuple[float, int]]:
 # The TICKR X records on its own whenever it's worn, so most app recordings
 # sit inside a longer strap recording of the same heartbeats, and Takeout has
 # the app's heart rate a second time. Each second is counted once, by the best
-# recording of it: a .FIT file over Takeout, a typed workout (run, strength)
+# recording of it: a .FIT file over Takeout, a typed workout (run, strength, hike)
 # over an untyped one, then the shorter over the longer.
 def _priority(row: sqlite3.Row) -> tuple:
     sport = row["sport_override"] or row["sport"]
