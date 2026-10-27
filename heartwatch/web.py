@@ -20,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest
+from . import db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest, week
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -202,6 +202,15 @@ def workouts_json(conn, cfg: Config) -> list[dict]:
     return out
 
 
+def week_json(conn, cfg: Config, today: date | None = None) -> dict:
+    """This week's and next week's plan, with the workout types recorded on days gone by."""
+    done: dict[date, list[str]] = {}
+    for w in store.workouts(conn):
+        if store.is_workout(w, cfg):
+            done.setdefault(w.start.date(), []).append(w.sport if w.sport in SPORTS else "other")
+    return week.plan_json(conn, events.all_events(conn), healthconnect.resting_hr(conn), done, today or date.today())
+
+
 def preview_values(query: dict) -> dict:
     out = {}
     for key in settings.TUNABLE:
@@ -243,7 +252,7 @@ def make_handler(cfg: Config):
             url = urlparse(self.path)
             if url.path in files:
                 return self._send(200, *files[url.path])
-            if url.path not in ("/api/series", "/api/workouts", "/api/settings", "/api/events"):
+            if url.path not in ("/api/series", "/api/workouts", "/api/settings", "/api/events", "/api/week"):
                 return self._json({"error": "not found"}, 404)
             conn = db.connect(cfg.db_path)
             try:
@@ -253,6 +262,8 @@ def make_handler(cfg: Config):
                     eff = settings.effective(cfg, conn, preview_values(parse_qs(url.query)))
                 except ValueError as e:
                     return self._json({"error": str(e)}, 400)
+                if url.path == "/api/week":
+                    return self._json(week_json(conn, eff))
                 if url.path == "/api/series":
                     return self._json(series_json(conn, eff))
                 if url.path == "/api/workouts":
@@ -295,6 +306,12 @@ def make_handler(cfg: Config):
                     except ValueError as e:
                         return self._json({"error": str(e)}, 400)
                     return self._json(self._settings(conn, eff))
+                if path == "/api/week/template":
+                    try:
+                        week.save_template(conn, body.get("days"))
+                    except ValueError as e:
+                        return self._json({"error": str(e)}, 400)
+                    return self._json(week_json(conn, settings.effective(cfg, conn)))
                 if path == "/api/events" or EVENT_PATH.fullmatch(path):
                     return self._event(conn, path, body)
                 for pattern, table, name in ((PACE_TEST_PATH, "pace_tests", "pace test"),

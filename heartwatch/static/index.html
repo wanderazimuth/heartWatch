@@ -134,6 +134,21 @@
   .event .what span { font-size: 13px; color: var(--muted); }
   .event .when { flex: none; font-size: 13px; font-weight: 600; color: var(--muted); }
   .event .when.soon { color: var(--link); }
+  .week { display: flex; flex-direction: column; }
+  .wday { display: flex; align-items: flex-start; gap: 12px; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+  .wday:last-child { border-bottom: 0; }
+  .wday.today { background: color-mix(in srgb, var(--aer) 12%, transparent); border-radius: 8px; border-bottom-color: transparent; }
+  .wday .dname { flex: none; width: 40px; font-size: 12px; color: var(--muted); text-transform: uppercase; line-height: 1.2; }
+  .wday .dname b { display: block; font-size: 17px; color: var(--text); }
+  .wday .what { flex: 1; min-width: 0; }
+  .wday .what b { font-weight: 650; }
+  .wday .what button { min-height: 0; padding: 0; border: 0; background: none; color: var(--link); font: inherit; font-weight: 700; text-align: left; }
+  .wday .min { margin-left: 6px; font-size: 14px; color: var(--muted); }
+  .wday .why { margin-top: 2px; font-size: 13px; color: var(--muted); }
+  .wday.rest .what b { font-weight: 500; color: var(--muted); }
+  .wday .done { flex: none; font-size: 13px; font-weight: 600; color: var(--z2); }
+  .tmpl { display: grid; grid-template-columns: 44px 1fr 90px; gap: 8px 10px; align-items: center; max-width: 520px; }
+  .tmpl select { width: 100%; }
   @media (max-width: 600px) { h1 { font-size: 22px; } }
   [hidden] { display: none !important; }
 </style>
@@ -462,6 +477,19 @@
         </form>
       </section>
       <section class="panel">
+        <div class="head"><div><h2 id="wk-title">This week</h2><div class="t" id="wk-total"></div></div>
+          <div class="pills" role="group" aria-label="Week" id="wk-pick"></div></div>
+        <div class="week" id="wk-days"></div>
+        <details class="about" data-about="week-template"><summary>Change your usual week</summary>
+          <div class="t">The week the plan starts from, before your events reshape it. The long day's minutes are a minimum.</div>
+          <div class="tmpl" id="wk-tmpl" style="margin-top:10px"></div>
+          <div class="formbar" style="margin-top:12px">
+            <button type="button" class="primary" id="wk-save" disabled>Save</button>
+            <button type="button" id="wk-reset">Back to the default week</button>
+          </div>
+        </details>
+      </section>
+      <section class="panel">
         <h2>Coming up</h2>
         <div class="events" id="e-next"></div>
       </section>
@@ -561,7 +589,8 @@ function zoneEdges(rest, max, lthr) {
   return [z1, ...rest4, max];
 }
 const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
-            settings: null, draft: null, showAll: false, rows: 100, bars: "load", events: null, form: null, pastRows: 10 };
+            settings: null, draft: null, showAll: false, rows: 100, bars: "load", events: null, form: null, pastRows: 10,
+            week: null, weekIdx: new Date().getDay() === 0 ? 1 : 0, tmpl: null };
 try { const b = localStorage.getItem("hw-bars") || (localStorage.getItem("hw-zones") === "5" ? "5" : ""); if (["load", "3", "5"].includes(b)) S.bars = b; } catch {}
 S.units = "mi";
 try { if (localStorage.getItem("hw-units") === "km") S.units = "km"; } catch {}
@@ -1223,7 +1252,64 @@ function renderNext() {
   if (n) $("f-next").innerHTML = `Next: <a href="#plan">${esc(n.title)}</a>, ${day(n.day).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}, ${countdown(n, today).toLowerCase()}.`;
 }
 
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function fmtMinutes(m, long) {
+  if (!m) return "";
+  const h = Math.floor(m / 60), r = m % 60;
+  const t = !h ? `${m} min` : !r ? `${h} h` : r === 30 ? `${h}.5 h` : `${h} h ${r} min`;
+  return long ? `${t} or more` : t;
+}
+function renderWeek() {
+  const w = S.week && S.week.weeks[S.weekIdx];
+  pills($("wk-pick"), [["0", "This week"], ["1", "Next week"]], String(S.weekIdx), (k) => { S.weekIdx = Number(k); renderWeek(); });
+  $("wk-title").textContent = S.weekIdx ? "Next week" : "This week";
+  if (!w) { $("wk-days").innerHTML = '<div class="empty">Loading…</div>'; return; }
+  const today = todayIso();
+  const trips = w.days.filter((d) => d.event).map((d) => d.label).filter((t, i, a) => a.indexOf(t) === i);
+  $("wk-total").textContent = `About ${fmtMinutes(w.minutes) || "no time"} of training` + (trips.length ? `, plus ${trips.join(" and ")}` : "") + ".";
+  $("wk-days").innerHTML = w.days.map((d) => {
+    const what = d.event ? `<button type="button" data-event="${d.event}">${esc(d.label)}</button>` : `<b>${esc(d.label)}</b>`;
+    const done = d.done.length ? "✓ " + [...new Set(d.done)].map((s) => SPORT_NAMES[s]).join(", ") : "";
+    return `<div class="wday${d.day === today ? " today" : ""}${d.session === "rest" ? " rest" : ""}">
+      <div class="dname">${WEEKDAYS[(day(d.day).getDay() + 6) % 7]}<b>${day(d.day).getDate()}</b></div>
+      <div class="what">${what}<span class="min">${fmtMinutes(d.minutes, d.session === "long")}</span>
+        ${d.why.map((y) => `<div class="why">${esc(y)}</div>`).join("")}</div>
+      <div class="done">${done}</div></div>`;
+  }).join("");
+  $("wk-days").querySelectorAll("button[data-event]").forEach((b) => (b.onclick = () => openForm(Number(b.dataset.event))));
+  renderTemplate();
+}
+// The usual week, edited in place; Save sends it.
+function renderTemplate() {
+  if (!S.tmpl) S.tmpl = S.week.template.map((t) => ({ ...t }));
+  const opts = (cur) => Object.entries(S.week.sessions).map(([k, v]) => `<option value="${k}"${k === cur ? " selected" : ""}>${esc(v)}</option>`).join("");
+  $("wk-tmpl").innerHTML = S.tmpl.map((t, i) => `<span class="t">${WEEKDAYS[i]}</span>
+    <select data-i="${i}" aria-label="${WEEKDAYS[i]} session">${opts(t.session)}</select>
+    <input type="number" data-i="${i}" min="0" max="360" step="5" value="${t.minutes}" aria-label="${WEEKDAYS[i]} minutes"${t.session === "rest" ? " disabled" : ""}>`).join("");
+  const changed = () => { $("wk-save").disabled = JSON.stringify(S.tmpl) === JSON.stringify(S.week.template); };
+  $("wk-tmpl").querySelectorAll("select").forEach((el) => (el.onchange = () => {
+    const t = S.tmpl[el.dataset.i];
+    t.session = el.value;
+    if (t.session === "rest") t.minutes = 0;
+    renderTemplate();
+  }));
+  $("wk-tmpl").querySelectorAll("input").forEach((el) => (el.oninput = () => {
+    S.tmpl[el.dataset.i].minutes = Math.max(0, Math.min(360, Math.round(Number(el.value) || 0)));
+    changed();
+  }));
+  changed();
+}
+async function saveTemplate(days) {
+  try {
+    S.week = await api("/api/week/template", { days });
+    S.tmpl = null;
+    toast(days ? "Your usual week is saved." : "Back to the default week.");
+    renderWeek();
+  } catch (e) { toast(e.message); }
+}
+
 function renderPlan() {
+  renderWeek();
   $("e-form").hidden = !S.form;
   $("e-add").hidden = !!S.form;
   if (!S.events) { $("e-next").innerHTML = '<div class="empty">Loading…</div>'; return; }
@@ -1283,7 +1369,7 @@ function readForm() {
            recap: S.form.recap || null, recap_note: field("recap_note").value };
 }
 async function loadEvents() {
-  S.events = (await api("/api/events")).events;
+  [S.events, S.week] = await Promise.all([api("/api/events").then((r) => r.events), api("/api/week")]);
   render();
 }
 
@@ -1334,9 +1420,9 @@ function maybeOpenRing(d) {
 }
 
 async function refresh(withWorkouts) {
-  const [data, set, ev] = await Promise.all([api("/api/series"), api("/api/settings"),
-    api("/api/events").catch(() => ({ events: S.events }))]);
-  S.data = data; S.settings = set; S.draft = { ...set.values }; S.events = ev.events;
+  const [data, set, ev, wk] = await Promise.all([api("/api/series"), api("/api/settings"),
+    api("/api/events").catch(() => ({ events: S.events })), api("/api/week").catch(() => S.week)]);
+  S.data = data; S.settings = set; S.draft = { ...set.values }; S.events = ev.events; S.week = wk; S.tmpl = null;
   if (withWorkouts || S.tab === "imports") S.workouts = (await api("/api/workouts")).workouts;
   render();
   if (!S.ringChecked) { S.ringChecked = true; maybeOpenRing(data); }
@@ -1395,6 +1481,8 @@ $("r-file").onchange = async (e) => {
   } catch (err) { toast(err.message); }
 };
 $("e-add").onclick = () => openForm(null);
+$("wk-save").onclick = () => saveTemplate(S.tmpl);
+$("wk-reset").onclick = () => saveTemplate(null);
 $("e-cancel").onclick = () => { S.form = null; renderPlan(); };
 $("e-more-past").onclick = () => { S.pastRows += 20; renderPlan(); };
 field("day").oninput = drawFormPills;

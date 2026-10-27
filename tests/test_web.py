@@ -169,6 +169,21 @@ class WebTest(unittest.TestCase):
         self.assertEqual(self.post(f"/api/events/{ev['id']}", {"deleted": True})[0], 404)
         self.assertEqual(self.post(f"/api/events/{ev['id']}", {"title": "Gone"})[0], 404)
 
+    def test_week(self):
+        d = self.get("/api/week")
+        self.assertEqual([len(w["days"]) for w in d["weeks"]], [7, 7])
+        self.assertEqual(date.fromisoformat(d["weeks"][0]["start"]).weekday(), 0)
+        conn = db.connect(self.cfg.db_path)
+        days = web.week_json(conn, self.cfg, date(2026, 10, 2))["weeks"][0]["days"]
+        conn.close()
+        self.assertEqual([x["done"] for x in days[2:6]], [[], ["run"], ["strength"], []])  # Thu run, Fri dumbbells (today)
+        tmpl = [dict(t) for t in d["template"]]
+        tmpl[0] = {"session": "rest", "minutes": 0}
+        status, saved = self.post("/api/week/template", {"days": tmpl})
+        self.assertEqual((status, saved["template"][0]["session"]), (200, "rest"))
+        self.assertEqual(self.post("/api/week/template", {"days": tmpl[:3]})[0], 400)
+        self.assertEqual(self.post("/api/week/template", {"days": None})[1]["template"], d["default"])
+
     def test_bad_events_are_refused(self):
         for body in ({"title": "No date"}, {"day": "2026-10-30"}, {"day": "2026-10-30", "title": "x", "size": "huge"},
                      {"day": "2026-10-30", "title": "x", "end_day": "2026-10-29"}):

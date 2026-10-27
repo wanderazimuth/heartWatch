@@ -105,7 +105,7 @@ to `/api/healthconnect` (shared key in a header). Resting heart rate above your 
 training capacity, below raises it. HRV from manual RingConn exports is charted but not scored.
 The normal range leaves out the current week, so a bad week can't lower it.
 
-**6. Events and the weekly plan (events list done; weekly plan next)**
+**6. Events and the weekly plan (events list and weekly plan done; matching past events next)**
 No race-style peaking: every week has one long, hard weekend day, and a trip (canyon, hike,
 snowboard, snowshoe) simply takes its place. About 7 hours a week; Sunday is rest.
 
@@ -125,7 +125,10 @@ snowboard, snowshoe) simply takes its place. About 7 hours a week; Sunday is res
 - **Rules**, written in code so each day can say why:
   - An event takes the long-day slot. If it isn't on Saturday, Saturday becomes easy or rest.
   - Before an event: two easy days for big (no hard Thursday), one for long, none for easy.
-  - After a big event: recovery days until resting heart rate is back in its normal range.
+  - After a big event: the next day is recovery, and the following 3 days are recovery too while
+    resting heart rate is above its normal range (a future day 2 is planned easy). After a long one,
+    the next day is easy.
+  - On a hard day with resting heart rate up, the plan stays but says so.
   - Snowboard weeks keep Tuesday's uphill session. The Saturday before a spring canyon or hike can
     run a little longer.
 
