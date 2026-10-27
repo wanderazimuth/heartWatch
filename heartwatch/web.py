@@ -20,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import db, dropbox, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest
+from . import db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ SPORTS = ("run", "strength", "hike", "other")
 WORKOUT_PATH = re.compile(r"/api/workouts/(\d+)/sport")
 PACE_TEST_PATH = re.compile(r"/api/pacetests/(\d+)")
 THRESHOLD_TEST_PATH = re.compile(r"/api/thresholdtests/(\d+)")
+EVENT_PATH = re.compile(r"/api/events/(\d+)")
 UPLOAD_TYPES = ("application/zip", "application/x-zip-compressed", "text/csv", "application/octet-stream")
 MAX_UPLOAD = 20 * 1024 * 1024
 # The Health Connect key may come in the URL, so keep it out of the logs.
@@ -242,10 +243,12 @@ def make_handler(cfg: Config):
             url = urlparse(self.path)
             if url.path in files:
                 return self._send(200, *files[url.path])
-            if url.path not in ("/api/series", "/api/workouts", "/api/settings"):
+            if url.path not in ("/api/series", "/api/workouts", "/api/settings", "/api/events"):
                 return self._json({"error": "not found"}, 404)
             conn = db.connect(cfg.db_path)
             try:
+                if url.path == "/api/events":
+                    return self._json({"events": events.all_events(conn)})
                 try:
                     eff = settings.effective(cfg, conn, preview_values(parse_qs(url.query)))
                 except ValueError as e:
@@ -292,6 +295,8 @@ def make_handler(cfg: Config):
                     except ValueError as e:
                         return self._json({"error": str(e)}, 400)
                     return self._json(self._settings(conn, eff))
+                if path == "/api/events" or EVENT_PATH.fullmatch(path):
+                    return self._event(conn, path, body)
                 for pattern, table, name in ((PACE_TEST_PATH, "pace_tests", "pace test"),
                                              (THRESHOLD_TEST_PATH, "threshold_tests", "threshold test")):
                     m = pattern.fullmatch(path)
@@ -319,6 +324,20 @@ def make_handler(cfg: Config):
                 return self._json({"ok": True})
             finally:
                 conn.close()
+
+        def _event(self, conn, path: str, body: dict):
+            # A new event, or changes to one: only the fields sent change, and {"deleted": true} removes it.
+            m = EVENT_PATH.fullmatch(path)
+            try:
+                if not m:
+                    return self._json(events.create(conn, body))
+                if body.get("deleted") is True:
+                    found = events.delete(conn, int(m.group(1)))
+                    return self._json({"ok": True}) if found else self._json({"error": "unknown event"}, 404)
+                ev = events.update(conn, int(m.group(1)), body)
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json(ev) if ev else self._json({"error": "unknown event"}, 404)
 
         def _ringconn(self):
             # A zip or CSV body, never a form: those content types also need a CORS

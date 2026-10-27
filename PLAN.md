@@ -105,6 +105,36 @@ to `/api/healthconnect` (shared key in a header). Resting heart rate above your 
 training capacity, below raises it. HRV from manual RingConn exports is charted but not scored.
 The normal range leaves out the current week, so a bad week can't lower it.
 
+**6. Events and the weekly plan (events list done; weekly plan next)**
+No race-style peaking: every week has one long, hard weekend day, and a trip (canyon, hike,
+snowboard, snowshoe) simply takes its place. About 7 hours a week; Sunday is rest.
+
+- **Events table**: `day`, optional `end_day` for trips of more than one day, `title`,
+  `kind` (canyon / hike / snowboard / snowshoe / other), `size` (easy under 3 h / long 3–6 h /
+  big over 6 h or several days), optional `climb_m`, `pack_lb`, `notes`, and a `recap`
+  (kept up / ok / struggled, plus a note) filled in afterwards. A past date means it happened;
+  deleting means cancelled.
+- **API**: `GET /api/events`, `POST /api/events` to create, `POST /api/events/<id>` to update or
+  delete (`{"deleted": true}`). JSON only, like the other POST routes.
+- **Plan tab** (phone-first): this week, Monday to Sunday; upcoming events with a countdown;
+  an add form (date, name, kind, size, with "more" for the rest); past events with matched workouts
+  and the recap. The Fitness tab gets a one-line "Next: … in N days".
+- **Weekly template** (in settings, so sessions and minutes can be changed): Mon easy run 45 min,
+  Tue uphill ruck/stairs 60, Wed easy run + strength 60, Thu hill repeats or tempo 45,
+  Fri easy 30 or off, Sat long day 2.5–4 h, Sun rest.
+- **Rules**, written in code so each day can say why:
+  - An event takes the long-day slot. If it isn't on Saturday, Saturday becomes easy or rest.
+  - Before an event: two easy days for big (no hard Thursday), one for long, none for easy.
+  - After a big event: recovery days until resting heart rate is back in its normal range.
+  - Snowboard weeks keep Tuesday's uphill session. The Saturday before a spring canyon or hike can
+    run a little longer.
+
+Build order: events table, API and the tab without the weekly plan; then the weekly plan from the
+template and rules; then matching past events to that day's workouts and Health Connect sessions,
+plus the recap. Scoring hikes done without the strap (ring session times + GPX elevation, with an
+effort model calibrated by occasional strap hikes) comes after, so an event's actual load can sit
+next to its plan.
+
 ## Decisions
 
 - **FIT reading**: `fitdecode` in a venv rather than a home-made parser (compressed timestamps and

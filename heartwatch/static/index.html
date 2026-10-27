@@ -115,6 +115,25 @@
   details.about .t { display: flex; flex-direction: column; gap: 8px; max-width: 820px; }
   details.about p { margin: 0; }
   button.details { min-height: 0; padding: 4px 6px; margin-left: 2px; border: 0; background: none; color: var(--link); font-size: inherit; }
+  /* Plan tab: the event list and its form. */
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  input[type=text], input[type=date], input[type=number], textarea { font: inherit; min-height: 40px; padding: 6px 10px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); width: 100%; }
+  textarea { min-height: 70px; resize: vertical; }
+  .pills small { font-weight: 500; opacity: .8; }
+  .formbar { display: flex; flex-wrap: wrap; gap: 8px; }
+  button.danger { color: var(--risk); }
+  .events { display: flex; flex-direction: column; gap: 8px; }
+  button.event { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 58px; padding: 8px 12px; text-align: left; font-weight: 400; }
+  .event .date { flex: none; width: 44px; text-align: center; line-height: 1.15; }
+  .event .date b { display: block; font-size: 20px; }
+  .event .date span { font-size: 11.5px; color: var(--muted); text-transform: uppercase; }
+  .event .what { flex: 1; min-width: 0; }
+  .event .what b { display: block; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event .what span { font-size: 13px; color: var(--muted); }
+  .event .when { flex: none; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .event .when.soon { color: var(--link); }
   @media (max-width: 600px) { h1 { font-size: 22px; } }
   [hidden] { display: none !important; }
 </style>
@@ -129,6 +148,7 @@
     <nav aria-label="Views">
       <a href="#fitness" data-tab="fitness">Fitness</a>
       <a href="#trends" data-tab="trends">Training Trends</a>
+      <a href="#plan" data-tab="plan">Plan</a>
       <a href="#imports" data-tab="imports">Imports</a>
     </nav>
     <div class="status">
@@ -149,6 +169,7 @@
         <div class="pills" role="group" aria-label="Time range" id="f-ranges"></div>
       </div>
       <div class="notice" id="f-peak" hidden></div>
+      <div class="t" id="f-next" hidden></div>
       <div class="cards compact">
         <div class="card state"><div class="k">Fitness state</div>
           <div style="display:flex;align-items:center;gap:10px"><span id="c-state-dot" style="width:14px;height:14px;border-radius:50%"></span><span id="c-state" style="font-weight:800;font-size:25px"></span></div>
@@ -403,6 +424,55 @@
   </section>
 
   <!-- Imports & settings -->
+  <!-- Plan: trips as they come up -->
+  <section id="tab-plan" hidden>
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div class="titlebar">
+        <div><h1>Plan</h1><div class="sub">Trips as they come up. Each one takes the place of the week's long day.</div></div>
+        <button type="button" class="primary" id="e-add">Add event</button>
+      </div>
+      <section class="panel" id="e-form" hidden>
+        <h2 id="e-form-title">Add event</h2>
+        <form id="e-form-el" style="display:flex;flex-direction:column;gap:14px" novalidate>
+          <div class="fields">
+            <label class="field">Date<input type="date" name="day" required></label>
+            <label class="field">Name<input type="text" name="title" maxlength="100" placeholder="Canyon with my brothers" required></label>
+            <label class="field">Kind<select name="kind">
+              <option value="canyon">Canyon</option><option value="hike">Hike</option><option value="snowboard">Snowboard</option>
+              <option value="snowshoe">Snowshoe</option><option value="other">Other</option></select></label>
+          </div>
+          <div class="field">Size<div class="pills" role="group" aria-label="Size" id="e-size"></div></div>
+          <details class="about" id="e-more"><summary>More</summary>
+            <div class="fields" style="margin-top:8px">
+              <label class="field">Last day (trips of several days)<input type="date" name="end_day"></label>
+              <label class="field"><span>Climb (<span id="e-climb-unit">ft</span>)</span><input type="number" name="climb" min="0" step="1" inputmode="numeric"></label>
+              <label class="field">Pack (lb)<input type="number" name="pack_lb" min="0" max="150" step="0.5" inputmode="decimal"></label>
+            </div>
+            <label class="field" style="margin-top:12px">Notes<textarea name="notes" maxlength="2000"></textarea></label>
+          </details>
+          <div id="e-recap" style="display:flex;flex-direction:column;gap:10px">
+            <div class="field">How did it go?<div class="pills" role="group" aria-label="How did it go" id="e-recap-pick"></div></div>
+            <label class="field">Recap<textarea name="recap_note" maxlength="2000" placeholder="Climbs, descents, how the pack felt…"></textarea></label>
+          </div>
+          <div class="formbar">
+            <button type="submit" class="primary" id="e-save">Save</button>
+            <button type="button" id="e-cancel">Cancel</button>
+            <button type="button" class="danger" id="e-delete" style="margin-left:auto">Delete</button>
+          </div>
+        </form>
+      </section>
+      <section class="panel">
+        <h2>Coming up</h2>
+        <div class="events" id="e-next"></div>
+      </section>
+      <section class="panel" id="e-past-panel" hidden>
+        <h2>Past</h2>
+        <div class="events" id="e-past"></div>
+        <button type="button" id="e-more-past" hidden>Show more</button>
+      </section>
+    </div>
+  </section>
+
   <section id="tab-imports" hidden>
     <div style="display:flex;flex-direction:column;gap:18px">
       <div class="titlebar"><div><h1>Imports</h1><div class="sub">What HeartWatch has read, and the settings it scores it with</div></div></div>
@@ -460,6 +530,11 @@ const STATES = {
   "Overtraining risk": ["#c0262d", "Fatigue is far above your base. Back off for a few days."],
 };
 const SPORT_NAMES = { run: "Run", strength: "Dumbbells", hike: "Hike", other: "Other" };
+const TABS = ["fitness", "trends", "plan", "imports"];
+const KIND_NAMES = { canyon: "Canyon", hike: "Hike", snowboard: "Snowboard", snowshoe: "Snowshoe", other: "Other" };
+const SIZE_NAMES = { easy: ["Easy", "under 3 h"], long: ["Long", "3–6 h"], big: ["Big", "over 6 h or several days"] };
+const RECAP_NAMES = { kept_up: "Kept up", ok: "OK", struggled: "Struggled" };
+const FT = 3.28084;
 const KNOBS = [
   ["resting_hr", "Resting heart rate", 1, "bpm", "Your heart rate at rest."],
   ["max_hr", "Max heart rate", 1, "bpm", "The highest your heart rate goes."],
@@ -486,7 +561,7 @@ function zoneEdges(rest, max, lthr) {
   return [z1, ...rest4, max];
 }
 const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
-            settings: null, draft: null, showAll: false, rows: 100, bars: "load" };
+            settings: null, draft: null, showAll: false, rows: 100, bars: "load", events: null, form: null, pastRows: 10 };
 try { const b = localStorage.getItem("hw-bars") || (localStorage.getItem("hw-zones") === "5" ? "5" : ""); if (["load", "3", "5"].includes(b)) S.bars = b; } catch {}
 S.units = "mi";
 try { if (localStorage.getItem("hw-units") === "km") S.units = "km"; } catch {}
@@ -1119,14 +1194,108 @@ function renderImports() {
   }
 }
 
+const todayIso = () => new Date().toLocaleDateString("en-CA");
+const daysFrom = (a, b) => Math.round((day(b) - day(a)) / 864e5);
+// Upcoming means not over yet: a trip of several days stays up until its last day has passed.
+const upcoming = (e, today) => (e.end_day || e.day) >= today;
+function countdown(e, today) {
+  const n = daysFrom(today, e.day);
+  return n < 0 ? "Under way" : n === 0 ? "Today" : n === 1 ? "Tomorrow" : `In ${n} days`;
+}
+function climbText(m) {
+  return S.units === "km" ? `${m.toLocaleString()} m climb` : `${Math.round(m * FT).toLocaleString()} ft climb`;
+}
+function eventCard(e, today) {
+  const d = day(e.day), past = !upcoming(e, today);
+  const month = d.toLocaleDateString("en-US", { month: "short" }) + (d.getFullYear() !== day(today).getFullYear() ? ` '${String(d.getFullYear()).slice(2)}` : "");
+  const meta = [KIND_NAMES[e.kind], SIZE_NAMES[e.size][0], e.end_day && `to ${fmtDay(e.end_day)}`,
+    e.climb_m != null && climbText(e.climb_m), e.pack_lb != null && `${e.pack_lb} lb pack`, e.recap && RECAP_NAMES[e.recap]].filter(Boolean);
+  const when = past ? (e.recap ? "" : "Add recap") : countdown(e, today);
+  return `<button type="button" class="event" data-id="${e.id}">
+    <span class="date"><span>${d.toLocaleDateString("en-US", { weekday: "short" })}</span><b>${d.getDate()}</b><span>${month}</span></span>
+    <span class="what"><b>${esc(e.title)}</b><span>${esc(meta.join(" · "))}</span></span>
+    <span class="when${!past && daysFrom(today, e.day) <= 7 ? " soon" : ""}">${when}</span></button>`;
+}
+
+function renderNext() {
+  const today = todayIso(), n = S.events && S.events.find((e) => upcoming(e, today));
+  $("f-next").hidden = !n;
+  if (n) $("f-next").innerHTML = `Next: <a href="#plan">${esc(n.title)}</a>, ${day(n.day).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}, ${countdown(n, today).toLowerCase()}.`;
+}
+
+function renderPlan() {
+  $("e-form").hidden = !S.form;
+  $("e-add").hidden = !!S.form;
+  if (!S.events) { $("e-next").innerHTML = '<div class="empty">Loading…</div>'; return; }
+  const today = todayIso();
+  const next = S.events.filter((e) => upcoming(e, today)), past = S.events.filter((e) => !upcoming(e, today)).reverse();
+  $("e-next").innerHTML = next.length ? next.map((e) => eventCard(e, today)).join("")
+    : '<div class="empty">Nothing planned. Add a trip when one comes up; until then each Saturday is a long day of your own.</div>';
+  $("e-past-panel").hidden = !past.length;
+  $("e-past").innerHTML = past.slice(0, S.pastRows).map((e) => eventCard(e, today)).join("");
+  $("e-more-past").hidden = past.length <= S.pastRows;
+  document.querySelectorAll("#tab-plan button.event").forEach((b) => (b.onclick = () => openForm(Number(b.dataset.id))));
+}
+
+const field = (name) => $("e-form-el").elements.namedItem(name);
+function drawFormPills() {
+  pills($("e-size"), Object.entries(SIZE_NAMES).map(([k, [n, h]]) => [k, `${n} <small>${h}</small>`]), S.form.size,
+    (k) => { S.form.size = k; drawFormPills(); });
+  // Tapping the chosen recap again clears it.
+  pills($("e-recap-pick"), Object.entries(RECAP_NAMES), S.form.recap,
+    (k) => { S.form.recap = S.form.recap === k ? null : k; drawFormPills(); });
+  // The recap is only asked for once the day has come.
+  $("e-recap").hidden = !field("day").value || field("day").value > todayIso();
+}
+// A new event defaults to the coming Saturday, the usual long day.
+function nextSaturday() {
+  const d = day(todayIso());
+  d.setDate(d.getDate() + (6 - d.getDay()));
+  return d.toLocaleDateString("en-CA");
+}
+function openForm(id) {
+  const e = id ? S.events.find((x) => x.id === id) : { day: nextSaturday(), kind: "hike", size: "long" };
+  S.form = { ...e };
+  field("day").value = e.day;
+  field("title").value = e.title || "";
+  field("kind").value = e.kind;
+  field("end_day").value = e.end_day || "";
+  field("climb").value = e.climb_m == null ? "" : S.units === "km" ? e.climb_m : Math.round(e.climb_m * FT);
+  field("pack_lb").value = e.pack_lb ?? "";
+  field("notes").value = e.notes || "";
+  field("recap_note").value = e.recap_note || "";
+  $("e-climb-unit").textContent = S.units === "km" ? "m" : "ft";
+  $("e-more").open = !!(e.end_day || e.climb_m != null || e.pack_lb != null || e.notes);
+  $("e-form-title").textContent = id ? "Edit event" : "Add event";
+  $("e-delete").hidden = !id;
+  $("e-delete").textContent = "Delete";
+  drawFormPills();
+  renderPlan();
+  $("e-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!id) field("title").focus({ preventScroll: true });
+}
+function readForm() {
+  const num = (v) => (v.trim() === "" ? null : Number(v));
+  let climb = num(field("climb").value);
+  if (climb != null && S.units !== "km") climb = Math.round(climb / FT);
+  return { day: field("day").value, end_day: field("end_day").value || null, title: field("title").value, kind: field("kind").value,
+           size: S.form.size, climb_m: climb, pack_lb: num(field("pack_lb").value), notes: field("notes").value,
+           recap: S.form.recap || null, recap_note: field("recap_note").value };
+}
+async function loadEvents() {
+  S.events = (await api("/api/events")).events;
+  render();
+}
+
 function render() {
-  for (const tab of ["fitness", "trends", "imports"]) {
+  for (const tab of TABS) {
     $("tab-" + tab).hidden = tab !== S.tab;
     document.querySelector(`nav a[data-tab=${tab}]`).classList.toggle("on", tab === S.tab);
   }
   renderHeader();
   if (!S.data) return;
-  if (S.tab === "fitness") renderFitness();
+  if (S.tab === "fitness") { renderFitness(); renderNext(); }
+  if (S.tab === "plan") renderPlan();
   if (S.tab === "trends") renderTrends();
   if (S.tab === "imports") renderImports();
 }
@@ -1165,8 +1334,9 @@ function maybeOpenRing(d) {
 }
 
 async function refresh(withWorkouts) {
-  const [data, set] = await Promise.all([api("/api/series"), api("/api/settings")]);
-  S.data = data; S.settings = set; S.draft = { ...set.values };
+  const [data, set, ev] = await Promise.all([api("/api/series"), api("/api/settings"),
+    api("/api/events").catch(() => ({ events: S.events }))]);
+  S.data = data; S.settings = set; S.draft = { ...set.values }; S.events = ev.events;
   if (withWorkouts || S.tab === "imports") S.workouts = (await api("/api/workouts")).workouts;
   render();
   if (!S.ringChecked) { S.ringChecked = true; maybeOpenRing(data); }
@@ -1174,7 +1344,7 @@ async function refresh(withWorkouts) {
 
 window.addEventListener("hashchange", () => {
   S.tab = (location.hash.slice(1) || "fitness");
-  if (!["fitness", "trends", "imports"].includes(S.tab)) S.tab = "fitness";
+  if (!TABS.includes(S.tab)) S.tab = "fitness";
   if (S.tab === "imports" && !S.workouts) refresh(true).catch((e) => toast(e.message)); else render();
 });
 function showDetails(on) {
@@ -1224,6 +1394,37 @@ $("r-file").onchange = async (e) => {
     await refresh(true);
   } catch (err) { toast(err.message); }
 };
+$("e-add").onclick = () => openForm(null);
+$("e-cancel").onclick = () => { S.form = null; renderPlan(); };
+$("e-more-past").onclick = () => { S.pastRows += 20; renderPlan(); };
+field("day").oninput = drawFormPills;
+$("e-form-el").onsubmit = async (ev) => {
+  ev.preventDefault();
+  $("e-save").disabled = true;
+  try {
+    await api(S.form.id ? `/api/events/${S.form.id}` : "/api/events", readForm());
+    toast(S.form.id ? "Event saved." : "Event added.");
+    S.form = null;
+    await loadEvents();
+  } catch (e) { toast(e.message); }
+  finally { $("e-save").disabled = false; }
+};
+// Two taps to delete, without a browser dialog.
+let deleteTimer;
+$("e-delete").onclick = async () => {
+  const b = $("e-delete");
+  if (b.textContent === "Delete") {
+    b.textContent = "Tap again to delete";
+    clearTimeout(deleteTimer); deleteTimer = setTimeout(() => (b.textContent = "Delete"), 4000);
+    return;
+  }
+  try {
+    await api(`/api/events/${S.form.id}`, { deleted: true });
+    toast("Event deleted.");
+    S.form = null;
+    await loadEvents();
+  } catch (e) { toast(e.message); }
+};
 $("update").onclick = async () => {
   const b = $("update");
   b.disabled = true; b.textContent = "Updating…";
@@ -1236,7 +1437,7 @@ $("update").onclick = async () => {
   finally { b.disabled = false; b.textContent = "Update"; }
 };
 
-S.tab = ["fitness", "trends", "imports"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "fitness";
+S.tab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "fitness";
 refresh(S.tab === "imports").catch((e) => toast("Couldn't load data: " + e.message));
 // Installable app with offline data. Browsers only allow it over HTTPS (the tailnet name), not http://heartwatch.lan.
 if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});

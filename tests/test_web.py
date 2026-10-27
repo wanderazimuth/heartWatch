@@ -155,6 +155,29 @@ class WebTest(unittest.TestCase):
         self.assertEqual(status, 409)
         self.assertIn("Dropbox", body["error"])
 
+    def test_events(self):
+        status, ev = self.post("/api/events", {"day": "2026-10-30", "title": "Canyon", "kind": "canyon", "size": "big"})
+        self.assertEqual(status, 200)
+        self.post("/api/events", {"day": "2026-10-03", "title": "Hike"})
+        self.assertEqual([e["title"] for e in self.get("/api/events")["events"]], ["Hike", "Canyon"])
+        # Only the fields sent change.
+        status, changed = self.post(f"/api/events/{ev['id']}", {"pack_lb": 30, "recap": "kept_up"})
+        self.assertEqual(status, 200)
+        self.assertEqual((changed["title"], changed["size"], changed["pack_lb"], changed["recap"]), ("Canyon", "big", 30, "kept_up"))
+        self.assertEqual(self.post(f"/api/events/{ev['id']}", {"deleted": True}), (200, {"ok": True}))
+        self.assertEqual([e["title"] for e in self.get("/api/events")["events"]], ["Hike"])
+        self.assertEqual(self.post(f"/api/events/{ev['id']}", {"deleted": True})[0], 404)
+        self.assertEqual(self.post(f"/api/events/{ev['id']}", {"title": "Gone"})[0], 404)
+
+    def test_bad_events_are_refused(self):
+        for body in ({"title": "No date"}, {"day": "2026-10-30"}, {"day": "2026-10-30", "title": "x", "size": "huge"},
+                     {"day": "2026-10-30", "title": "x", "end_day": "2026-10-29"}):
+            status, err = self.post("/api/events", body)
+            self.assertEqual(status, 400, body)
+            self.assertIn("error", err)
+        self.assertEqual(self.post("/api/events", {"day": "2026-10-30", "title": "x"}, "text/plain")[0], 415)
+        self.assertEqual(self.get("/api/events")["events"], [])
+
 
 class SettingsTest(unittest.TestCase):
     def test_saved_values_equal_to_config_are_dropped(self):

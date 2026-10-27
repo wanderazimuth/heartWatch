@@ -82,6 +82,24 @@ CREATE TABLE IF NOT EXISTS threshold_tests (
     pace REAL,                       -- seconds per km over the last 20 minutes
     not_test INTEGER NOT NULL DEFAULT 0  -- marked by hand on the dashboard
 );
+
+-- Trips you plan for, entered on the Plan tab (see events.py).
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY,
+    day TEXT NOT NULL,               -- YYYY-MM-DD, local
+    end_day TEXT,                    -- last day of a trip of several days
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL,              -- canyon / hike / snowboard / snowshoe / other
+    size TEXT NOT NULL,              -- easy / long / big
+    climb_m INTEGER,
+    pack_lb REAL,
+    notes TEXT,
+    recap TEXT,                      -- kept_up / ok / struggled, filled in afterwards
+    recap_note TEXT,
+    created INTEGER NOT NULL,
+    updated INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS events_day ON events (day);
 """
 
 
