@@ -181,6 +181,7 @@ def cmd_web(cfg: config_mod.Config, args) -> None:
 
 def cmd_rebuild(cfg: config_mod.Config, args) -> None:
     conn = db.connect(cfg.db_path)
+    print(f"found {store.scan_drives(conn, cfg)} workouts that ended with a car ride")
     print(f"rebuilt {store.rebuild_all(conn, cfg)} workouts")
     print(f"reloaded {healthconnect.reload(conn, cfg)} Health Connect payloads")
     print(f"found {pacetest.scan(conn, cfg)} pace tests")

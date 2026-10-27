@@ -72,6 +72,14 @@ each can be switched back to a fixed number on the Imports page (or in `config.t
 Like any setting, these apply to the whole history: a new test rescores past workouts too. After
 an upgrade, `heartwatch rebuild` looks for threshold tests in runs imported before.
 
+## Recordings left running in the car
+
+End a hike late, after driving off, and the drive would count as part of it. HeartWatch reads the
+recording's GPS speed: when it ends with speed above 25 km/h held for 30 seconds and staying at
+driving pace, everything from the last standstill before it (you, at the car) is left out. The
+archived file isn't changed. The workout list on Imports says "Car ride left out" with the minutes;
+tap it to count them after all. `heartwatch rebuild` looks for drives in workouts imported before.
+
 ## Backfill from Google Takeout
 
 The Wahoo app wrote its heart rate to Google Fit for years. Export Google Fit with Google Takeout,

@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS workouts (
     archive_path TEXT,
     detail TEXT,                     -- the file's own sport name
     peak_hr INTEGER,                 -- highest heart rate after removing glitches
-    imported INTEGER NOT NULL
+    imported INTEGER NOT NULL,
+    drive_at INTEGER,                -- a car ride at the end began here (fit.find_drive); after it isn't counted
+    keep_drive INTEGER NOT NULL DEFAULT 0  -- set by hand: count it after all
 );
 CREATE INDEX IF NOT EXISTS workouts_start ON workouts (start);
 
@@ -111,6 +113,11 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
+    # Car rides at the end of a recording came later (store.scan_drives finds them in old workouts).
+    if "drive_at" not in {r["name"] for r in conn.execute("PRAGMA table_info(workouts)")}:
+        with conn:
+            conn.execute("ALTER TABLE workouts ADD COLUMN drive_at INTEGER")
+            conn.execute("ALTER TABLE workouts ADD COLUMN keep_drive INTEGER NOT NULL DEFAULT 0")
     # Hikes, walks and stair sessions were "other" before hike was a type of its own
     # (fit.SPORTS, takeout.Activity.sport).
     with conn:

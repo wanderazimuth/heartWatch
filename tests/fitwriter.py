@@ -34,16 +34,20 @@ LAP_TRIGGERS = {"manual": 0, "session_end": 7}
 
 def write(start: datetime, bpms: list[int], sport: str = "running", sub_sport: str = "generic",
           step: int = 1, distances: list[float] | None = None,
-          laps: list[tuple[int, int, str]] = ()) -> bytes:
+          laps: list[tuple[int, int, str]] = (), speeds: list[float] | None = None) -> bytes:
     """A FIT activity: file_id, a session, and one record per bpm, step seconds apart.
 
-    distances (metres, one per record) and laps ((start, end) seconds from
-    start, and a trigger) are added when given."""
+    distances (metres, one per record), speeds (m/s, one per record) and laps
+    ((start, end) seconds from start, and a trigger) are added when given."""
     body = definition(0, 0, [(0, 1, 0x00)]) + struct.pack("<BB", 0, 4)  # file_id: type = activity
     body += definition(1, 18, [(253, 4, 0x86), (2, 4, 0x86), (5, 1, 0x00), (6, 1, 0x00)])
     t0 = fit_time(start)
     body += struct.pack("<BIIBB", 1, t0 + step * len(bpms), t0, SPORTS[sport], SUB_SPORTS[sub_sport])
-    if distances is None:
+    if speeds is not None:
+        body += definition(2, 20, [(253, 4, 0x86), (3, 1, 0x02), (6, 2, 0x84)])
+        for i, (bpm, v) in enumerate(zip(bpms, speeds)):
+            body += struct.pack("<BIBH", 2, t0 + i * step, bpm, round(v * 1000))
+    elif distances is None:
         body += definition(2, 20, [(253, 4, 0x86), (3, 1, 0x02)])
         for i, bpm in enumerate(bpms):
             body += struct.pack("<BIB", 2, t0 + i * step, bpm)

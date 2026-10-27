@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 
 SPORTS = ("run", "strength", "hike", "other")
 WORKOUT_PATH = re.compile(r"/api/workouts/(\d+)/sport")
+DRIVE_PATH = re.compile(r"/api/workouts/(\d+)/drive")
 PACE_TEST_PATH = re.compile(r"/api/pacetests/(\d+)")
 THRESHOLD_TEST_PATH = re.compile(r"/api/thresholdtests/(\d+)")
 EVENT_PATH = re.compile(r"/api/events/(\d+)")
@@ -179,7 +180,7 @@ def ring_json(conn, today: date) -> dict | None:
 
 
 def workouts_json(conn, cfg: Config) -> list[dict]:
-    rows = {r["id"]: r for r in conn.execute("SELECT id, sport, sport_override, source, detail FROM workouts")}
+    rows = {r["id"]: r for r in conn.execute("SELECT id, end, sport, sport_override, source, detail, drive_at, keep_drive FROM workouts")}
     ws = store.workouts(conn)
     cfg, _ = profile.apply(cfg, conn, ws)
     out = []
@@ -198,6 +199,9 @@ def workouts_json(conn, cfg: Config) -> list[dict]:
             "avg_hr": round(w.avg_hr), "peak_hr": w.peak_hr,
             "load": round(l.total, 1), "aerobic": round(l.aerobic, 1), "threshold": round(l.threshold, 1),
             "anaerobic": round(l.anaerobic, 1), "zone_minutes": [round(z, 1) for z in zones],
+            # A car ride at the end: how long, and whether it was marked to count after all.
+            "drive_minutes": round((row["end"] - row["drive_at"]) / 60, 1) if row["drive_at"] else None,
+            "keep_drive": bool(row["keep_drive"]),
         })
     return out
 
@@ -325,6 +329,12 @@ def make_handler(cfg: Config):
                         found = conn.execute(f"UPDATE {table} SET not_test = ? WHERE workout_id = ?",
                                              (int(body["not_test"]), int(m.group(1)))).rowcount
                     return self._json({"ok": True}) if found else self._json({"error": f"unknown {name}"}, 404)
+                m = DRIVE_PATH.fullmatch(path)
+                if m:
+                    if not isinstance(body.get("keep"), bool):
+                        return self._json({"error": "keep must be true or false"}, 400)
+                    found = store.keep_drive(conn, cfg, int(m.group(1)), body["keep"])
+                    return self._json({"ok": True}) if found else self._json({"error": "no car ride in that workout"}, 404)
                 m = WORKOUT_PATH.fullmatch(path)
                 if not m:
                     return self._json({"error": "not found"}, 404)

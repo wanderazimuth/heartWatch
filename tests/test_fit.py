@@ -68,6 +68,31 @@ class HistogramTest(unittest.TestCase):
         self.assertEqual(fit.histogram([(0, 120), (600, 125), (601, 125)]), {120: 5.0, 125: 1.0})
 
 
+# A hike with the recording left running: 20 minutes walking, a minute at the car, then 5 minutes driving.
+HIKE = [1.3] * 1200 + [0.2] * 60 + [3.0] * 20 + [14.0] * 280
+
+
+class DriveTest(unittest.TestCase):
+    def test_drive_at_the_end_is_cut_at_the_car(self):
+        self.assertEqual(fit.find_drive(list(enumerate(HIKE))), 1259)
+
+    def test_no_drive(self):
+        self.assertIsNone(fit.find_drive(list(enumerate([1.3] * 1500))))
+        self.assertIsNone(fit.find_drive([]))
+
+    def test_a_fast_stretch_followed_by_walking_is_not_a_drive(self):
+        # Downhill on a bike, or a GPS glitch: fast for a minute, then walking pace for twenty.
+        self.assertIsNone(fit.find_drive(list(enumerate([1.3] * 600 + [9.0] * 60 + [1.3] * 1200))))
+
+    def test_a_short_spike_is_not_a_drive(self):
+        self.assertIsNone(fit.find_drive(list(enumerate([1.3] * 600 + [20.0] * 10 + [1.3] * 60))))
+
+    def test_read_finds_it(self):
+        rec = fit.read(io.BytesIO(write(START, [120] * len(HIKE), "hiking", speeds=HIKE)))
+        self.assertEqual(rec.drive, 1259)
+        self.assertIsNone(fit.read(io.BytesIO(write(START, [120] * 100, "hiking", speeds=[1.3] * 100))).drive)
+
+
 class ImportTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -84,6 +109,36 @@ class ImportTest(unittest.TestCase):
         [w] = store.workouts(self.conn)
         self.assertEqual(w.hist, {120: 60.0})
         self.assertEqual(w.sport, "run")
+
+    def test_car_ride_is_left_out_until_kept(self):
+        bpms = [130] * 1260 + [95] * 300
+        store.import_fit(self.conn, self.cfg, "ruck.fit", write(START, bpms, "hiking", speeds=HIKE))
+        [w] = store.workouts(self.conn)
+        self.assertNotIn(95, w.hist)
+        self.assertAlmostEqual(w.minutes, (1259 - fit.SETTLE_SECONDS) / 60, places=1)
+        self.assertTrue(store.keep_drive(self.conn, self.cfg, w.id, True))
+        self.assertIn(95, store.workouts(self.conn)[0].hist)
+        store.keep_drive(self.conn, self.cfg, w.id, False)
+        self.assertNotIn(95, store.workouts(self.conn)[0].hist)
+
+    def test_scan_finds_drives_in_old_workouts(self):
+        store.import_fit(self.conn, self.cfg, "ruck.fit", write(START, [130] * 1260 + [95] * 300, "hiking", speeds=HIKE))
+        store.import_fit(self.conn, self.cfg, "run.fit", write(START + timedelta(days=1), [150] * 600))
+        self.assertFalse(store.keep_drive(self.conn, self.cfg, 2, True))  # no car ride in the run
+        self.conn.execute("UPDATE workouts SET drive_at = NULL")  # imported before drives were looked for
+        store.rebuild_all(self.conn, self.cfg)
+        self.assertIn(95, store.workouts(self.conn)[0].hist)
+        self.assertEqual(store.scan_drives(self.conn, self.cfg), 1)
+        self.assertNotIn(95, store.workouts(self.conn)[0].hist)
+
+    def test_old_database_gets_the_drive_columns(self):
+        path = Path(self.tmp.name) / "old.db"
+        conn = db.connect(path)
+        conn.executescript("ALTER TABLE workouts DROP COLUMN keep_drive; ALTER TABLE workouts DROP COLUMN drive_at;")
+        conn.close()
+        conn = db.connect(path)
+        self.addCleanup(conn.close)
+        self.assertLessEqual({"drive_at", "keep_drive"}, {r["name"] for r in conn.execute("PRAGMA table_info(workouts)")})
 
     def test_bad_file_is_reported_not_raised(self):
         result = store.import_fit(self.conn, self.cfg, "bad.fit", b"not a fit file")

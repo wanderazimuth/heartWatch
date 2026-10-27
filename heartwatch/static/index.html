@@ -1206,7 +1206,10 @@ function renderImports() {
       const bar = w.zone_minutes.slice(1).map((m, i) => `<i style="width:${m / zt * 100}%;background:${zc[i + 1]}"></i>`).join("");
       const opts = ["run", "strength", "hike", "other"].map((s) => `<option value="${s}"${s === w.sport ? " selected" : ""}>${SPORT_NAMES[s]}</option>`).join("");
       const when = new Date(w.start).toLocaleString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-      return `<tr class="${w.workout ? "" : "leftover"}"><td>${when}</td>
+      const drive = w.drive_minutes == null ? ""
+        : `<br><button type="button" class="details" data-drive="${w.id}" data-keep="${!w.keep_drive}" title="Speed says the recording kept going in a car">${w.keep_drive
+          ? `Car ride counted (${Math.round(w.drive_minutes)} min) · leave it out` : `Car ride left out (${Math.round(w.drive_minutes)} min) · count it`}</button>`;
+      return `<tr class="${w.workout ? "" : "leftover"}"><td>${when}${drive}</td>
         <td><select data-id="${w.id}" data-file="${w.file_sport}" aria-label="Workout type">${opts}</select>${w.overridden ? ' <span class="t" title="Changed by hand">✎</span>' : ""}</td>
         <td title="${esc(w.detail)}">${by(w)}</td><td class="num">${Math.round(w.minutes)}</td><td class="num">${w.avg_hr}</td><td class="num">${w.peak_hr}</td>
         <td class="num">${Math.round(w.load)}</td><td><span class="zbar" title="${w.zone_minutes.slice(1).map((m, i) => `zone ${i + 1}: ${Math.round(m)} min`).join(", ")}">${bar}</span></td></tr>`;
@@ -1218,6 +1221,14 @@ function renderImports() {
         toast("Type changed.");
         await refresh(true);
       } catch (e) { toast(e.message); sel.disabled = false; }
+    }));
+    $("w-rows").querySelectorAll("button[data-drive]").forEach((b) => (b.onclick = async () => {
+      b.disabled = true;
+      try {
+        await api(`/api/workouts/${b.dataset.drive}/drive`, { keep: b.dataset.keep === "true" });
+        toast(b.dataset.keep === "true" ? "The car ride counts now." : "Car ride left out.");
+        await refresh(true);
+      } catch (e) { toast(e.message); b.disabled = false; }
     }));
     $("w-more").hidden = all.length <= S.rows;
   }

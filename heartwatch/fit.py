@@ -19,11 +19,13 @@ class Recording:
     sport: str  # "run", "strength", "hike" or "other"
     fit_sport: str  # what the file said, for the record
     hr: list[tuple[float, int]] = field(default_factory=list)  # (seconds from start, bpm)
+    drive: float | None = None  # seconds from start when a car ride at the end began (find_drive)
 
 
 def read(source: str | BinaryIO) -> Recording:
     sport = sub_sport = None
     samples: list[tuple[datetime, int]] = []
+    speeds: list[tuple[datetime, float]] = []
     with fitdecode.FitReader(source) as reader:
         for frame in reader:
             if not isinstance(frame, fitdecode.FitDataMessage):
@@ -36,6 +38,11 @@ def read(source: str | BinaryIO) -> Recording:
                 bpm = frame.get_value("heart_rate", fallback=None)
                 if ts is not None and bpm:
                     samples.append((ts, int(bpm)))
+                speed = frame.get_value("enhanced_speed", fallback=None)
+                if speed is None:
+                    speed = frame.get_value("speed", fallback=None)
+                if ts is not None and speed is not None:
+                    speeds.append((ts, float(speed)))
     if len(samples) < 2:
         raise ValueError("no heart-rate samples")
     samples.sort()
@@ -47,7 +54,43 @@ def read(source: str | BinaryIO) -> Recording:
     hr = clean([((ts - start).total_seconds(), bpm) for ts, bpm in samples])
     if len(hr) < 2:
         raise ValueError("too short to use")
-    return Recording(start, end, kind, fit_sport, hr)
+    drive = find_drive(sorted(((ts - start).total_seconds(), v) for ts, v in speeds))
+    return Recording(start, end, kind, fit_sport, hr, drive)
+
+
+DRIVE_SPEED = 7.0   # m/s, 25 km/h: nobody on foot holds this for half a minute
+DRIVE_HOLD = 30     # seconds it has to be held
+DRIVE_MEAN = 4.0    # m/s from there to the end of the recording, stops at lights and all
+STOPPED = 0.5       # m/s: standing at the car
+LOOK_BACK = 300     # how far back from the drive to look for that standstill
+
+
+def find_drive(speed: list[tuple[float, float]]) -> float | None:
+    """When a recording left running in the car stopped being a workout, or None.
+
+    A drive is speed above DRIVE_SPEED for DRIVE_HOLD seconds that lasts to the end
+    of the recording (only a drive at the end: the recording was ended late). The cut
+    is at the last standstill before it, so pulling out of the parking lot goes too.
+    """
+    n = len(speed)
+    after = [0.0] * (n + 1)  # sums of speed from each sample to the end
+    for i in range(n - 1, -1, -1):
+        after[i] = after[i + 1] + speed[i][1]
+    for i, (t, v) in enumerate(speed):
+        if v <= DRIVE_SPEED:
+            continue
+        held = [x for u, x in speed[i:i + DRIVE_HOLD * 4] if u - t <= DRIVE_HOLD]
+        if speed[i + len(held) - 1][0] - t < DRIVE_HOLD * 0.8 or sum(held) / len(held) <= DRIVE_SPEED:
+            continue
+        if after[i] / (n - i) < DRIVE_MEAN:
+            continue  # it went back to walking pace: a fast stretch in a workout, not the ride home
+        for u, x in reversed(speed[:i]):
+            if t - u > LOOK_BACK:
+                break
+            if x < STOPPED:
+                return u
+        return t
+    return None
 
 
 SETTLE_SECONDS = 30  # a strap reads nonsense while its contacts settle

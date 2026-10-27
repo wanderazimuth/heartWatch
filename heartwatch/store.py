@@ -59,9 +59,9 @@ def import_fit(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) ->
     start, end = int(rec.start.timestamp()), int(rec.end.timestamp())
     with conn:
         cur = conn.execute(
-            "INSERT INTO workouts (start, end, sport, source, source_ref, archive_path, detail, peak_hr, imported)"
-            " VALUES (?, ?, ?, 'fit', ?, ?, ?, ?, ?)",
-            (start, end, rec.sport, ref, rel, rec.fit_sport, max(b for _, b in rec.hr), int(time.time())))
+            "INSERT INTO workouts (start, end, sport, source, source_ref, archive_path, detail, peak_hr, imported, drive_at)"
+            " VALUES (?, ?, ?, 'fit', ?, ?, ?, ?, ?, ?)",
+            (start, end, rec.sport, ref, rel, rec.fit_sport, max(b for _, b in rec.hr), int(time.time()), _drive_at(rec)))
         rebuild(conn, cfg, overlapping(conn, start, end))
     if rec.sport == "run":
         for kind, mod in (("pace", pacetest), ("threshold", thresholdtest)):
@@ -132,8 +132,14 @@ def hrv_readings(conn: sqlite3.Connection) -> dict[date, float]:
     return {d: r["hrv"] for d, r in vitals(conn).items() if r["hrv"] is not None}
 
 
+def _drive_at(rec: fit.Recording) -> int | None:
+    return None if rec.drive is None else int(rec.start.timestamp() + rec.drive)
+
+
 def samples(cfg: Config, row: sqlite3.Row) -> list[tuple[float, int]]:
-    """A workout's cleaned heart rate as (unix seconds, bpm), read back from the archive."""
+    """A workout's cleaned heart rate as (unix seconds, bpm), read back from the archive.
+
+    A car ride at the end is left out, unless it was marked to count after all."""
     # archive_path is relative to archive_dir, so the archive can move between machines.
     path = Path(cfg.archive_dir) / row["archive_path"]
     if row["source"] == "takeout":
@@ -143,7 +149,8 @@ def samples(cfg: Config, row: sqlite3.Row) -> list[tuple[float, int]]:
         return [(t0 + t, bpm) for t, bpm in fit.clean([(t - t0, bpm) for t, bpm in raw])]
     rec = fit.read(path)
     t0 = rec.start.timestamp()
-    return [(t0 + t, bpm) for t, bpm in rec.hr]
+    cut = row["drive_at"] if row["drive_at"] and not row["keep_drive"] else float("inf")
+    return [(t0 + t, bpm) for t, bpm in rec.hr if t0 + t < cut]
 
 
 # The TICKR X records on its own whenever it's worn, so most app recordings
@@ -182,6 +189,37 @@ def rebuild(conn: sqlite3.Connection, cfg: Config, ids: list[int]) -> None:
             conn.executemany("INSERT INTO hr_hist (workout_id, bpm, seconds) VALUES (?, ?, ?)",
                              [(row["id"], bpm, s) for bpm, s in fit.histogram(own).items()])
             claimed.append((row["start"], row["end"]))
+
+
+def keep_drive(conn: sqlite3.Connection, cfg: Config, workout_id: int, keep: bool) -> bool:
+    """Count a workout's car ride after all, or leave it out again. False if there's none to change."""
+    row = conn.execute("SELECT start, end FROM workouts WHERE id = ? AND drive_at IS NOT NULL", (workout_id,)).fetchone()
+    if row is None:
+        return False
+    with conn:
+        conn.execute("UPDATE workouts SET keep_drive = ? WHERE id = ?", (int(keep), workout_id))
+    rebuild(conn, cfg, overlapping(conn, row["start"], row["end"]))
+    return True
+
+
+def scan_drives(conn: sqlite3.Connection, cfg: Config) -> int:
+    """Look for car rides at the end of every archived .FIT workout again. Returns how many have one."""
+    changed: list[sqlite3.Row] = []
+    found = 0
+    for row in conn.execute("SELECT id, start, end, archive_path, drive_at FROM workouts WHERE source = 'fit'").fetchall():
+        try:
+            drive_at = _drive_at(fit.read(Path(cfg.archive_dir) / row["archive_path"]))
+        except Exception as e:
+            log.warning("looking for a drive in %s: %s", row["archive_path"], e)
+            continue
+        found += drive_at is not None
+        if drive_at != row["drive_at"]:
+            with conn:
+                conn.execute("UPDATE workouts SET drive_at = ? WHERE id = ?", (drive_at, row["id"]))
+            changed.append(row)
+    for row in changed:
+        rebuild(conn, cfg, overlapping(conn, row["start"], row["end"]))
+    return found
 
 
 def rebuild_all(conn: sqlite3.Connection, cfg: Config) -> int:

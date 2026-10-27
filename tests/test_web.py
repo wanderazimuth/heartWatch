@@ -169,6 +169,12 @@ class WebTest(unittest.TestCase):
         self.assertEqual(self.post(f"/api/events/{ev['id']}", {"deleted": True})[0], 404)
         self.assertEqual(self.post(f"/api/events/{ev['id']}", {"title": "Gone"})[0], 404)
 
+    def test_drive_route(self):
+        ws = self.get("/api/workouts")["workouts"]
+        self.assertTrue(all(w["drive_minutes"] is None for w in ws))
+        self.assertEqual(self.post(f"/api/workouts/{ws[0]['id']}/drive", {"keep": True})[0], 404)  # no car ride
+        self.assertEqual(self.post(f"/api/workouts/{ws[0]['id']}/drive", {"keep": "yes"})[0], 400)
+
     def test_week(self):
         d = self.get("/api/week")
         self.assertEqual([len(w["days"]) for w in d["weeks"]], [7, 7])
