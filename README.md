@@ -175,6 +175,24 @@ as resting heart rate, but it doesn't change training capacity: the export's HRV
 average, which workouts and stressful days pull down too. Exports can overlap; a later export of
 the same day replaces it.
 
+## Fitbit Aria scale
+
+The original Fitbit Aria (first generation) can't be set up with today's Fitbit app, but it keeps
+uploading to `www.fitbit.com` over plain HTTP. Point that name at the Pi (a Local DNS record in
+Pi-hole, and a Caddy block passing `/scale/*` to port 8081; the piServer repo does both) and set
+`aria_mac` and the other `aria_` settings in the config. HeartWatch then answers the scale the way
+fitbit.com did, using the protocol the [helvetic](https://github.com/micolous/helvetic) project
+worked out:
+
+- Every upload is kept under `archive/aria` and its readings go into the database; `heartwatch
+  rebuild` reads them again. Only your scale's MAC is accepted, in a message with a valid checksum.
+- The reply sets the scale's clock and units and tells it who you are (`aria_name`, height, birth
+  year, sex), so it recognises you by weight, within 4 kg of your last reading, and estimates body
+  fat. Anyone else is a guest: weight only, kept apart.
+- It never offers the scale a firmware update.
+- The scale keeps readings it couldn't upload and sends them later, so nothing is lost while the Pi
+  is down.
+
 ## On the Pi
 
 From Git Bash on Windows, commit, then:

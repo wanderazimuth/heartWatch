@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import config as config_mod
-from . import backup, db, dropbox, healthconnect, load, pacetest, profile, settings, store, takeout, thresholdtest, web
+from . import aria, backup, db, dropbox, healthconnect, load, pacetest, profile, settings, store, takeout, thresholdtest, web
 from .store import MIN_ACTIVE_MINUTES, is_workout
 
 log = logging.getLogger("heartwatch")
@@ -184,6 +184,7 @@ def cmd_rebuild(cfg: config_mod.Config, args) -> None:
     print(f"found {store.scan_drives(conn, cfg)} workouts that ended with a car ride")
     print(f"rebuilt {store.rebuild_all(conn, cfg)} workouts")
     print(f"reloaded {healthconnect.reload(conn, cfg)} Health Connect payloads")
+    print(f"found {aria.reload(conn, cfg)} new scale readings")
     print(f"found {pacetest.scan(conn, cfg)} pace tests")
     print(f"found {thresholdtest.scan(conn, cfg)} laps that could be threshold tests")
 

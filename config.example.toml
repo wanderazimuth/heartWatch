@@ -44,6 +44,15 @@ healthconnect_key = ""
 # allowed to read) in the archive, for uses beyond HeartWatch. Off: only what HeartWatch uses.
 healthconnect_keep_all = false
 
+# An original Fitbit Aria scale sending here instead of fitbit.com (README: "Fitbit Aria scale").
+# aria_mac empty: off. The rest lets it recognise you and estimate body fat.
+aria_mac = ""            # e.g. "00:1d:c9:d2:0f:79"
+aria_name = "ME"         # shown on the scale, up to 20 letters
+aria_height_mm = 0
+aria_birth_year = 0
+aria_sex = ""            # "male" or "female"; "" gives weight only
+aria_units = "lb"        # "lb", "kg" or "stone"
+
 # Short-term load counts harder work extra.
 threshold_fatigue = 1.4
 anaerobic_fatigue = 2.0

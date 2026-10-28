@@ -20,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest, week
+from . import aria, db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest, week
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -254,6 +254,10 @@ def make_handler(cfg: Config):
 
         def do_GET(self):
             url = urlparse(self.path)
+            if url.path == "/scale/register":  # the Aria joining an account; there's none to join
+                return self._send(200, b"", "text/plain")
+            if url.path == "/scale/validate":
+                return self._send(200, b"T", "text/plain")
             if url.path in files:
                 return self._send(200, *files[url.path])
             if url.path not in ("/api/series", "/api/workouts", "/api/settings", "/api/events", "/api/week"):
@@ -290,6 +294,8 @@ def make_handler(cfg: Config):
                 return self._ringconn()
             if path == "/api/healthconnect":
                 return self._healthconnect()
+            if path == "/scale/upload":
+                return self._aria()
             # Requiring JSON forces a CORS preflight for cross-site requests, which we
             # never approve, so other websites can't change anything via your browser.
             if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
@@ -384,6 +390,33 @@ def make_handler(cfg: Config):
             finally:
                 conn.close()
             return self._json({"ok": True, "days": len(days), "first": days[0].day.isoformat(), "last": days[-1].day.isoformat()})
+
+        def _aria(self):
+            # Binary, as the scale sends it. Only your scale's MAC is taken, inside a message with a
+            # valid checksum, so nothing else on the network (or a website) can add readings.
+            if not cfg.aria_mac:
+                return self._send(404, b"", "text/plain")
+            size = int(self.headers.get("Content-Length", 0))
+            if not 0 < size <= 4096:
+                return self._send(413, b"", "text/plain")
+            body = self.rfile.read(size)
+            try:
+                upload = aria.parse(body)
+            except ValueError as e:
+                log.warning("aria: refused an upload: %s", e)
+                return self._send(400, b"", "text/plain")
+            if upload.mac != cfg.aria_mac.replace(":", "").replace("-", "").lower():
+                log.warning("aria: upload from an unknown scale %s", upload.mac)
+                return self._send(403, b"", "text/plain")
+            conn = db.connect(cfg.db_path)
+            try:
+                new = aria.save(conn, cfg, body, upload)
+                answer = aria.reply(cfg, *aria.me(conn))
+            finally:
+                conn.close()
+            log.info("aria: %d readings (%d new), battery %d%%, firmware %d",
+                     len(upload.readings), new, upload.battery, upload.firmware)
+            return self._send(200, answer, "application/octet-stream;charset=UTF-8")
 
         def _healthconnect(self):
             # The phone app proves itself with the shared key, so nothing else on the

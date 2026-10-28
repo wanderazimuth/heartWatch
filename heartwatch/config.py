@@ -64,6 +64,16 @@ class Config:
     # type included, under <archive_dir>/healthconnect-all (and so in the backup).
     healthconnect_keep_all: bool = False
 
+    # An original Fitbit Aria scale sending to HeartWatch (aria.py): its MAC address, as
+    # "00:1d:c9:..."; empty: off. The rest is what it needs to recognise you and estimate
+    # body fat. aria_sex is "male", "female" or "" (weight only); aria_units "lb", "kg" or "stone".
+    aria_mac: str = ""
+    aria_name: str = "ME"
+    aria_height_mm: int = 0
+    aria_birth_year: int = 0
+    aria_sex: str = ""
+    aria_units: str = "lb"
+
     # Hard work tires you more than its load suggests.
     threshold_fatigue: float = 1.4
     anaerobic_fatigue: float = 2.0
@@ -83,4 +93,8 @@ def load(path: str | Path | None) -> Config:
         raise ValueError("need 0 < resting_hr < max_hr")
     if config.lthr and not config.resting_hr < config.lthr < config.max_hr:
         raise ValueError("need resting_hr < lthr < max_hr, or lthr = 0")
+    if config.aria_sex not in ("male", "female", ""):
+        raise ValueError('aria_sex must be "male", "female" or ""')
+    if config.aria_units not in ("lb", "kg", "stone"):
+        raise ValueError('aria_units must be "lb", "kg" or "stone"')
     return config

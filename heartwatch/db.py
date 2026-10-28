@@ -102,6 +102,18 @@ CREATE TABLE IF NOT EXISTS events (
     updated INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS events_day ON events (day);
+
+-- Weight and body fat (see aria.py). A reading sent twice is kept once.
+CREATE TABLE IF NOT EXISTS body (
+    id INTEGER PRIMARY KEY,
+    taken INTEGER NOT NULL,          -- unix seconds
+    weight_g INTEGER,
+    fat_pct REAL,
+    source TEXT NOT NULL,            -- aria
+    person TEXT,                     -- the scale's number for who stood on it, or 'guest'
+    imported INTEGER NOT NULL,
+    UNIQUE (source, taken, weight_g)
+);
 """
 
 
