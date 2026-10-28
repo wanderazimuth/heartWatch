@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import config as config_mod
-from . import aria, backup, db, dropbox, healthconnect, load, pacetest, profile, settings, store, takeout, thresholdtest, web
+from . import backup, body, db, dropbox, healthconnect, load, pacetest, profile, settings, store, takeout, thresholdtest, web
 from .store import MIN_ACTIVE_MINUTES, is_workout
 
 log = logging.getLogger("heartwatch")
@@ -24,6 +24,9 @@ def cmd_import(cfg: config_mod.Config, args) -> None:
             print(f"added      {r.start.astimezone():%Y-%m-%d %H:%M}  {r.sport:<8} {name}")
         elif key == "failed":
             print(f"FAILED     {name}: {result.status[len('failed: '):]}")
+    for path in (Path(p) for p in args.paths):
+        if path.suffix.lower() == ".zip" and (n := body.import_runkeeper(conn, cfg, path)):
+            print(f"added      {n} weight readings from {path.name}")
     print(", ".join(f"{n} {k}" for k, n in counts.items()) or "no .fit or .gpx files found")
 
 
@@ -88,13 +91,14 @@ def cmd_summary(cfg: config_mod.Config, args) -> None:
 
 def cmd_takeout(cfg: config_mod.Config, args) -> None:
     zips = [Path(p) for p in args.zips]
+    conn = db.connect(cfg.db_path)
+    print(f"{body.import_takeout(conn, cfg, zips)} new weight readings")
     samples = takeout.heart_rate(zips)
     if not samples:
         print("No Wahoo heart rate found in these zips.")
         return
     sessions = takeout.sessions(samples, takeout.activities(zips))
     print(f"{len(samples)} heart-rate readings, {len(sessions)} sessions")
-    conn = db.connect(cfg.db_path)
     counts: dict[str, int] = {}
     for session in sessions:
         result = store.import_takeout(conn, cfg, session)
@@ -184,7 +188,7 @@ def cmd_rebuild(cfg: config_mod.Config, args) -> None:
     print(f"found {store.scan_drives(conn, cfg)} workouts that ended with a car ride")
     print(f"rebuilt {store.rebuild_all(conn, cfg)} workouts")
     print(f"reloaded {healthconnect.reload(conn, cfg)} Health Connect payloads")
-    print(f"found {aria.reload(conn, cfg)} new scale readings")
+    print(f"found {body.reload(conn, cfg)} new weight readings")
     print(f"found {pacetest.scan(conn, cfg)} pace tests")
     print(f"found {thresholdtest.scan(conn, cfg)} laps that could be threshold tests")
 

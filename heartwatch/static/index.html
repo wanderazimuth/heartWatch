@@ -196,6 +196,7 @@
         <div class="card"><div class="k">Resting heart rate</div><div class="v" id="c-rhr"></div><div class="t" id="c-rhr-t"></div></div>
         <div class="card"><div class="k">Sleep</div><div class="v" id="c-sleep"></div><div class="t" id="c-sleep-t"></div></div>
         <div class="card"><div class="k">Brisk walking</div><div class="v" id="c-move"></div><div class="t" id="c-move-t"></div></div>
+        <div class="card"><div class="k">Weight</div><div class="v" id="c-weight"></div><div class="t" id="c-weight-t"></div></div>
       </div>
 
       <section class="panel">
@@ -350,6 +351,39 @@
         </div>
         <div class="empty" id="h-empty" hidden></div>
         <details class="about" data-about="h"><summary>About this chart</summary><div class="t" id="h-text"></div></details>
+      </section>
+      <section class="panel">
+        <div class="head">
+          <h2>Weight <small>from the Aria scale and old exports; shown, not scored</small></h2>
+          <div class="legend">
+            <span><i class="sw" style="width:7px;height:7px;border-radius:50%;background:var(--soft)"></i>Each weigh-in</span>
+            <span><i class="sw" style="height:4px;background:var(--text)"></i>2-week average</span>
+          </div>
+        </div>
+        <div id="w-chart">
+          <div class="chart">
+            <div class="axis" style="height:200px" id="w-axis"></div>
+            <div class="plot"><div style="height:200px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Each weigh-in and the 2-week average weight">
+              <path id="w-day" fill="none" stroke="var(--soft)" stroke-width="6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+              <path id="w-week" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+            </svg></div></div>
+          </div>
+          <div class="xlabels nr" id="w-x"></div>
+        </div>
+        <div class="empty" id="w-empty" hidden></div>
+        <div id="bf-chart" style="margin-top:14px">
+          <div class="k" style="margin-bottom:6px">Body fat, %</div>
+          <div class="chart">
+            <div class="axis" style="height:130px" id="bf-axis"></div>
+            <div class="plot"><div style="height:130px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Body fat at each weigh-in and its 2-week average">
+              <path id="bf-day" fill="none" stroke="var(--soft)" stroke-width="6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+              <path id="bf-week" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+            </svg></div></div>
+          </div>
+          <div class="xlabels nr" id="bf-x"></div>
+        </div>
+        <div class="empty" id="bf-empty" hidden></div>
+        <details class="about" data-about="w"><summary>About this chart</summary><div class="t" id="w-text"></div></details>
       </section>
       <div class="note" id="f-note"></div>
     </div>
@@ -713,6 +747,7 @@ function renderFitness() {
     : d.rhr_baseline_days < d.min_baseline ? `Long-term minus short-term load. No adjustment until there are ${d.min_baseline} days of resting heart rate to learn your normal range (${d.rhr_baseline_days} so far).`
     : "Long-term minus short-term load. Resting heart rate is normal: no adjustment.";
   renderRing(lo, hi, span, t);
+  renderWeight(lo, hi, span, t);
   $("c-ltl").innerHTML = Math.round(d.ltl[t]) + trend(d.ltl[t], d.ltl[back], "4 weeks ago");
   $("c-ltl-t").textContent = pct(d.ltl[t], d.ltl[back]) + ` Aerobic ${Math.round(d.ltl_aerobic[t])}, threshold ${Math.round(d.ltl_threshold[t])}, anaerobic ${Math.round(d.ltl_anaerobic[t])}.`;
   // Short-term load turns over in about a week, so it's compared with a week ago.
@@ -836,6 +871,55 @@ function ringChart(key, prefix, lo, hi, span, empty, pad = 2, ref = null) {
   $(prefix + "-day").setAttribute("d", gapLine(pts.map((p) => p.day), y));
   $(prefix + "-week").setAttribute("d", gapLine(pts.map((p) => p._week), y));
   xLabels($(prefix + "-x"), lo, hi, span);
+}
+
+// Weigh-ins are days apart, not daily: a dot for each (averaged over groups of days on long
+// ranges, like the other charts), and the 2-week average as a line.
+function weightChart(key, prefix, lo, hi, span, empty, pad) {
+  const b = Math.ceil(span / 120), pts = [];
+  for (let i = lo; i < hi; i += b) {
+    const p = {};
+    for (const k of ["", "_trend"]) {
+      const xs = S.data[key + k].slice(i, Math.min(i + b, hi)).filter((v) => v !== null);
+      p[k || "day"] = xs.length ? avg(xs) : null;
+    }
+    pts.push(p);
+  }
+  const any = pts.some((p) => p.day !== null || p._trend !== null);
+  $(prefix + "-chart").hidden = !any; $(prefix + "-empty").hidden = any || !empty;
+  $(prefix + "-empty").textContent = empty;
+  if (!any) return;
+  const vals = pts.flatMap((p) => [p.day, p._trend]).filter((v) => v !== null);
+  const a = Math.floor(Math.min(...vals) - pad), top = Math.ceil(Math.max(...vals) + pad);
+  const y = (v) => 280 - (v - a) / (top - a) * 260;
+  $(prefix + "-axis").innerHTML = `<span style="top:6.7%">${top}</span><span style="top:93.3%">${a}</span>`;
+  // A zero-length stroke with round caps is a dot that stays round however the chart is stretched.
+  $(prefix + "-day").setAttribute("d", pts.map((p, i) => p.day === null ? "" : `M${X(i, pts.length)} ${y(p.day).toFixed(1)}h0`).join(""));
+  $(prefix + "-week").setAttribute("d", gapLine(pts.map((p) => p._trend), y));
+  xLabels($(prefix + "-x"), lo, hi, span);
+}
+
+function renderWeight(lo, hi, span, t) {
+  const d = S.data, u = d.weight_unit, last = d.last_weight;
+  const back = Math.max(0, t - 28);
+  const now = d.weight_trend[t], then = d.weight_trend[back];
+  const change = now !== null && then !== null ? Math.round((now - then) * 10) / 10 : null;
+  $("c-weight").innerHTML = last ? `${last.weight} <small>${u}</small>`
+    + (change ? ` <small style="color:var(--muted)" title="2-week average, compared with 4 weeks ago">${change > 0 ? "↑" : "↓"}${Math.abs(change)}</small>` : "")
+    : "<small>not yet</small>";
+  $("c-weight-t").textContent = last ? `Weighed ${fmtDay(last.day)}.` + (last.fat !== null ? ` Body fat ${last.fat}%.` : "")
+    : "Comes from the Aria scale (see the README).";
+  weightChart("weight", "w", lo, hi, span, last ? "No weigh-ins in this time range." : "No weigh-ins yet. Step on the Aria scale.", 2);
+  weightChart("fat", "bf", lo, hi, span, "", 1);
+  explain("w-text",
+    `<b>What it shows.</b> Each weigh-in (dots) and the average of the weigh-ins over the last two weeks (line), in ${u === "kg" ? "kilograms" : "pounds"}, `
+      + "with body fat below when the scale measured it. On long ranges each dot averages a few days.",
+    "<b>Why it matters.</b> Every pound you don't carry is a pound you don't haul uphill, so on a climb losing weight works like a lighter pack. "
+      + "Day to day, weight swings a few pounds with water, salt and food, which is why the average line is the one to read. "
+      + "Body fat from a bathroom scale is an estimate from a small current through your feet: it moves with how hydrated you are, so trust its trend over months, not one reading.",
+    "<b>Where it comes from.</b> The Aria scale, which sends to HeartWatch instead of Fitbit (it recognises you by weight; anyone else is a guest and left out), "
+      + "and weights you logged in Monitor Your Weight, MyFitnessPal, Google Fit and Runkeeper years ago. "
+      + "Profile weights other apps copy into every workout are left out. Weight doesn't change load or fitness: those come from heart rate alone.");
 }
 
 function renderRing(lo, hi, span, t) {

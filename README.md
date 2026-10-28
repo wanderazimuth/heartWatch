@@ -193,6 +193,15 @@ worked out:
 - The scale keeps readings it couldn't upload and sends them later, so nothing is lost while the Pi
   is down.
 
+## Weight
+
+The Fitness tab charts weight and body fat: each weigh-in, the 2-week average, and a Weight tile.
+Besides the Aria scale, `takeout` reads the weights you weighed into apps that wrote to Google Fit
+(Monitor Your Weight, MyFitnessPal, Google Fit's own entries), and `import` reads Runkeeper's
+`measurements.csv` (weight and body fat) from its export zip. Profile weights that the Wahoo app and
+others copy into every workout are left out. The readings taken from exports are kept under
+`archive/body`. Weight is shown, not scored: load and fitness come from heart rate alone.
+
 ## On the Pi
 
 From Git Bash on Windows, commit, then:

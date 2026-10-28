@@ -20,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import aria, db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest, week
+from . import aria, body, db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest, week
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -74,7 +74,8 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
             if z:  # below zone 1 is standing around, not training
                 minutes[sport].setdefault(d, [0.0] * 5)[z - 1] += secs / 60
     total = store.daily_loads(ws, cfg)
-    start, end = ws[0].start.date(), max(today, ws[-1].start.date())
+    # From the first workout, or the first weigh-in if that's earlier.
+    start, end = min(ws[0].start.date(), body.first_day(conn) or date.max), max(today, ws[-1].start.date())
     rhr = load.readiness(healthconnect.resting_hr(conn), cfg, start, end)
     hrv = load.baseline_series(store.hrv_readings(conn), start, end)
     # Shown with your normal range like HRV, and like HRV it doesn't change capacity.
@@ -111,6 +112,7 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
         **baseline_json("steps", steps, digits=0),
         **baseline_json("brisk", brisk),
         "bursts": [moved[d.day].bursts if d.day in done else None for d in days],
+        **body.series_json(conn, cfg, start, end),
         "readiness_adjust": [r(b.adjust) for b in rhr],
         "min_baseline": load.MIN_BASELINE,
     })

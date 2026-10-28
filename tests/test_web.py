@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from heartwatch import db, settings, store, web
+from heartwatch import body, db, settings, store, web
 from heartwatch.config import Config
 
 from fitwriter import write
@@ -72,6 +72,14 @@ class WebTest(unittest.TestCase):
         self.assertEqual(d["load"]["other"]["threshold"][i], 0)
         self.assertEqual(d["sessions"]["strength"][i + 1], 1)
         self.assertEqual(d["peak_hr"]["bpm"], 150)
+
+    def test_weigh_ins_before_the_first_workout_start_the_charts(self):
+        conn = db.connect(self.cfg.db_path)
+        body.store(conn, "runkeeper", [(int((START - timedelta(days=3)).timestamp()), 90000, None)])
+        conn.close()
+        d = self.get("/api/series")
+        self.assertEqual((d["days"][0], d["weight"][0], d["weight_unit"]), ("2026-09-28", 198.4, "lb"))
+        self.assertEqual(len(d["weight"]), len(d["days"]))
 
     def test_preview_does_not_save(self):
         plain = self.get("/api/series")["ltl"][-1]
