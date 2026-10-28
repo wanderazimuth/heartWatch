@@ -548,7 +548,8 @@
 
 <script>
 "use strict";
-const RANGES = [["1W", 7], ["1M", 30], ["3M", 91], ["6M", 182], ["1Y", 365], ["2Y", 730]];
+// "All" is the whole history, however long that is (see spanOf).
+const RANGES = [["1W", 7], ["1M", 30], ["3M", 91], ["6M", 182], ["1Y", 365], ["2Y", 730], ["All", 0]];
 const BUCKETS = { "1W": [1, "per day"], "1M": [1, "per day"], "3M": [7, "per week"], "6M": [7, "per week"], "1Y": [30, "per month"], "2Y": [30, "per month"] };
 const STATES = {
   "Building": ["#3b5bdb", "Training harder than your baseline, so fitness is rising. After 2–3 weeks of this, plan a lighter week."],
@@ -639,6 +640,8 @@ function pills(el, options, current, pick) {
   el.querySelectorAll("button").forEach((b) => (b.onclick = () => pick(b.dataset.id)));
 }
 
+// How many days a range button shows.
+const spanOf = (id) => RANGES.find((r) => r[0] === id)[1] || S.data.days.length;
 // The last `span` days, as index range into the day columns.
 function window_(span) {
   const n = S.data.days.length;
@@ -682,7 +685,7 @@ function renderFitness() {
   const d = S.data, n = d.days.length;
   pills($("f-ranges"), RANGES.map((r) => [r[0], r[0]]), S.fRange, (id) => { S.fRange = id; renderFitness(); });
   if (!n) { $("f-today").textContent = "No workouts imported yet."; return; }
-  const span = RANGES.find((r) => r[0] === S.fRange)[1];
+  const span = spanOf(S.fRange);
   const [lo, hi] = window_(span), t = n - 1, back = Math.max(0, t - 28);
   $("f-today").textContent = "Today, " + day(d.days[t]).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
@@ -953,7 +956,7 @@ function renderTrends() {
   pills($("t-ranges"), RANGES.map((r) => [r[0], r[0]]), S.tRange, (id) => { S.tRange = id; renderTrends(); });
   pills($("t-sports"), [["all", "All"], ["run", "Runs"], ["strength", "Dumbbells"], ["hike", "Hikes"]], S.sport, (id) => { S.sport = id; renderTrends(); });
   if (!n) return;
-  const span = RANGES.find((r) => r[0] === S.tRange)[1];
+  const span = spanOf(S.tRange);
   const [lo, hi] = window_(span), t = hi - 1;
 
   const pts = points(["ltl_aerobic", "ltl_threshold", "ltl_anaerobic"], lo, hi, span);
@@ -989,7 +992,7 @@ function renderTrends() {
       + "Threshold work raises the pace you can hold for an hour; anaerobic work sharpens speed but is the most tiring and fades quickest. "
       + "A healthy build has the bottom band growing steadily, with thinner threshold and anaerobic layers on top. If the top bands grow while the base shrinks, you're running harder without the foundation to absorb it.");
 
-  const [size, label] = BUCKETS[S.tRange];
+  const [size, label] = S.tRange !== "All" ? BUCKETS[S.tRange] : span > 1100 ? [91, "per quarter"] : [30, "per month"];
   const sports = S.sport === "all" ? ["run", "strength", "hike", "other"] : [S.sport];
   renderZones(lo, hi, span, size, label, sports, axis);
   renderPaceTests();
