@@ -94,6 +94,21 @@ The heart-rate stream is split into sessions wherever it pauses for 10 minutes, 
 named after the Google Fit activity that overlaps it. Sessions already covered by a .fit file are
 skipped, and a .fit file imported later takes over any seconds it shares with a Takeout session.
 
+## Backfill from Runkeeper (GPX)
+
+`import` also takes .gpx files, such as Runkeeper's account export (a zip of them):
+
+```
+.venv\Scripts\python -m heartwatch --config config.toml import %USERPROFILE%\Downloads\runkeeper-data-export-*.zip
+```
+
+Only tracks with heart rate are imported; the rest are counted as "no heart rate". The workout type
+comes from the track name (Running, Hiking, Walking). Runkeeper's older files write local time
+marked as UTC, so the start time is taken from the file name (2012-03-05-085059.gpx), which is
+local either way. Phone apps logged the strap every few seconds: each reading holds until the next
+across gaps of up to 30 seconds, and a longer gap is a pause. Like everything else, old workouts
+are scored with today's resting and max heart rate.
+
 ## Dropbox
 
 The Wahoo app can share every workout's .fit file to Dropbox (Settings > Authorized apps > Dropbox).

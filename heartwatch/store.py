@@ -14,7 +14,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterator
 
-from . import fit, pacetest, ringconn, takeout, thresholdtest
+from . import fit, gpx, pacetest, ringconn, takeout, thresholdtest
 from .config import Config
 from .load import Load, workout_load, zone
 
@@ -28,18 +28,27 @@ class Imported:
     recording: fit.Recording | None = None
 
 
+WORKOUT_FILES = (".fit", ".gpx")
+
+
 def fit_files(paths: list[Path]) -> Iterator[tuple[str, bytes]]:
-    """(name, contents) of every .fit file in the given files, folders and zips."""
+    """(name, contents) of every .fit and .gpx file in the given files, folders and zips."""
     for path in paths:
         if path.is_dir():
             yield from fit_files(sorted(path.rglob("*")))
         elif path.suffix.lower() == ".zip":
             with zipfile.ZipFile(path) as zf:
                 for name in sorted(zf.namelist()):
-                    if name.lower().endswith(".fit"):
+                    if name.lower().endswith(WORKOUT_FILES):
                         yield Path(name).name, zf.read(name)
-        elif path.suffix.lower() == ".fit":
+        elif path.suffix.lower() in WORKOUT_FILES:
             yield path.name, path.read_bytes()
+
+
+def import_file(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) -> Imported:
+    if name.lower().endswith(".gpx"):
+        return import_gpx(conn, cfg, name, data)
+    return import_fit(conn, cfg, name, data)
 
 
 def import_fit(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) -> Imported:
@@ -104,6 +113,40 @@ def import_takeout(conn: sqlite3.Connection, cfg: Config, session: takeout.Sessi
     return Imported(name, "added")
 
 
+def import_gpx(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) -> Imported:
+    """A GPX workout (Runkeeper's export). Tracks without heart rate are skipped: there's nothing to score."""
+    ref = "gpx:" + hashlib.sha256(data).hexdigest()
+    if conn.execute("SELECT 1 FROM workouts WHERE source_ref = ?", (ref,)).fetchone():
+        return Imported(name, "duplicate")
+    try:
+        rec = gpx.read(name, data)
+    except ValueError as e:
+        return Imported(name, "no heart rate" if "heart-rate" in str(e) else f"failed: {e}")
+    except Exception as e:
+        return Imported(name, f"failed: {e}")
+    start, end = int(rec.start.timestamp()), int(rec.end.timestamp())
+    if end - start < takeout.MIN_SESSION:
+        return Imported(name, "failed: too short to use")
+    covered = conn.execute(
+        "SELECT COALESCE(SUM(MIN(end, ?) - MAX(start, ?)), 0) FROM workouts WHERE start < ? AND end > ?",
+        (end, start, end, start)).fetchone()[0]
+    if covered >= COVERED * (end - start):
+        return Imported(name, "duplicate")
+    dest = Path(cfg.archive_dir) / "gpx" / f"{rec.start.astimezone():%Y}" / name
+    if dest.exists() and dest.read_bytes() != data:
+        dest = dest.with_name(f"{dest.stem}-{ref[4:12]}{dest.suffix}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+    with conn:
+        conn.execute(
+            "INSERT INTO workouts (start, end, sport, source, source_ref, archive_path, detail, peak_hr, imported)"
+            " VALUES (?, ?, ?, 'gpx', ?, ?, ?, ?, ?)",
+            (start, end, rec.sport, ref, dest.relative_to(cfg.archive_dir).as_posix(), rec.fit_sport,
+             max(b for _, b in rec.hr), int(time.time())))
+        rebuild(conn, cfg, overlapping(conn, start, end))
+    return Imported(name, "added", rec)
+
+
 def import_ringconn(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) -> list[ringconn.Vitals]:
     """Store a RingConn export's days (newer exports win) and archive the file. Raises ValueError."""
     days = ringconn.read(name, data)
@@ -147,6 +190,10 @@ def samples(cfg: Config, row: sqlite3.Row) -> list[tuple[float, int]]:
             raw = json.load(f)["samples"]
         t0 = raw[0][0]
         return [(t0 + t, bpm) for t, bpm in fit.clean([(t - t0, bpm) for t, bpm in raw])]
+    if row["source"] == "gpx":
+        rec = gpx.read(path.name, path.read_bytes())
+        t0 = rec.start.timestamp()
+        return [(t0 + t, bpm) for t, bpm in rec.hr]
     rec = fit.read(path)
     t0 = rec.start.timestamp()
     cut = row["drive_at"] if row["drive_at"] and not row["keep_drive"] else float("inf")
@@ -156,7 +203,7 @@ def samples(cfg: Config, row: sqlite3.Row) -> list[tuple[float, int]]:
 # The TICKR X records on its own whenever it's worn, so most app recordings
 # sit inside a longer strap recording of the same heartbeats, and Takeout has
 # the app's heart rate a second time. Each second is counted once, by the best
-# recording of it: a .FIT file over Takeout, a typed workout (run, strength, hike)
+# recording of it: a .FIT file over Takeout or GPX, a typed workout (run, strength, hike)
 # over an untyped one, then the shorter over the longer.
 def _priority(row: sqlite3.Row) -> tuple:
     sport = row["sport_override"] or row["sport"]

@@ -1200,7 +1200,7 @@ function renderImports() {
     const all = S.workouts.filter((w) => S.showAll || w.workout);
     $("w-count").textContent = `${S.workouts.filter((w) => w.workout).length} workouts`;
     const zc = ZONE_COLOURS;
-    const by = (w) => w.source === "takeout" ? "Google Fit backfill" : w.detail === "generic/exercise" ? "TICKR X" : "Wahoo app";
+    const by = (w) => w.source === "takeout" ? "Google Fit backfill" : w.source === "gpx" ? "GPX file" : w.detail === "generic/exercise" ? "TICKR X" : "Wahoo app";
     $("w-rows").innerHTML = all.slice(0, S.rows).map((w) => {
       const zt = w.zone_minutes.slice(1).reduce((u, v) => u + v, 0) || 1;
       const bar = w.zone_minutes.slice(1).map((m, i) => `<i style="width:${m / zt * 100}%;background:${zc[i + 1]}"></i>`).join("");

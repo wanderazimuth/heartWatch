@@ -16,7 +16,7 @@ def cmd_import(cfg: config_mod.Config, args) -> None:
     conn = db.connect(cfg.db_path)
     counts: dict[str, int] = {}
     for name, data in store.fit_files([Path(p) for p in args.paths]):
-        result = store.import_fit(conn, cfg, name, data)
+        result = store.import_file(conn, cfg, name, data)
         key = result.status.split(":")[0]
         counts[key] = counts.get(key, 0) + 1
         if result.recording:
@@ -24,7 +24,7 @@ def cmd_import(cfg: config_mod.Config, args) -> None:
             print(f"added      {r.start.astimezone():%Y-%m-%d %H:%M}  {r.sport:<8} {name}")
         elif key == "failed":
             print(f"FAILED     {name}: {result.status[len('failed: '):]}")
-    print(", ".join(f"{n} {k}" for k, n in counts.items()) or "no .fit files found")
+    print(", ".join(f"{n} {k}" for k, n in counts.items()) or "no .fit or .gpx files found")
 
 
 def fmt_change(change: float) -> str:
@@ -206,7 +206,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--config", help="path to config.toml (defaults built in)")
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("import", help="import .fit files, folders of them, or zips")
+    p = sub.add_parser("import", help="import .fit and .gpx files, folders of them, or zips")
     p.add_argument("paths", nargs="+")
     p = sub.add_parser("summary", help="today's numbers and recent weeks")
     p.add_argument("--weeks", type=int, default=8)
