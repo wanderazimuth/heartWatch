@@ -112,13 +112,25 @@ def save(conn: sqlite3.Connection, cfg: Config, body: bytes, upload: Upload) -> 
     return new
 
 
+# A resend is timed by when it arrives (parse), so its readings can come out up to this much later.
+RESEND_WINDOW = 3600
+
+
 def store_readings(conn: sqlite3.Connection, readings: list[Reading]) -> int:
+    """Store the readings that are new. The scale resends an upload when the reply didn't reach it;
+    the same weight for the same person within RESEND_WINDOW is taken as the copy already stored."""
     now = int(time.time())
+    new = 0
     with conn:
-        # rowcount, not total_changes: that also counts db.CHANGES's trigger.
-        return conn.executemany(
-            "INSERT OR IGNORE INTO body (taken, weight_g, fat_pct, source, person, imported) VALUES (?, ?, ?, 'aria', ?, ?)",
-            [(r.taken, r.weight_g, r.fat_pct, str(r.user_id) if r.user_id else "guest", now) for r in readings]).rowcount
+        for r in readings:
+            person = str(r.user_id) if r.user_id else "guest"
+            if conn.execute("SELECT 1 FROM body WHERE source = 'aria' AND person = ? AND weight_g = ? AND ABS(taken - ?) <= ?",
+                            (person, r.weight_g, r.taken, RESEND_WINDOW)).fetchone():
+                continue
+            conn.execute("INSERT INTO body (taken, weight_g, fat_pct, source, person, imported) VALUES (?, ?, ?, 'aria', ?, ?)",
+                         (r.taken, r.weight_g, r.fat_pct, person, now))
+            new += 1
+    return new
 
 
 def me(conn: sqlite3.Connection) -> tuple[int, int | None]:

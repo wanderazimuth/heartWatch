@@ -36,6 +36,16 @@ class ParseTest(unittest.TestCase):
         got = aria.parse(upload([(88450, NOW - 3600 - 60, 1, 0)], clock=NOW - 3600), now=NOW)
         self.assertEqual(got.readings[0].taken, NOW - 60)
 
+    def test_a_resend_is_not_stored_twice(self):
+        conn = db.connect(":memory:")
+        body = upload([(88450, NOW - 60, 12345, 22500), (61000, NOW - 30, 0, 0)])
+        self.assertEqual(aria.store_readings(conn, aria.parse(body, now=NOW).readings), 2)
+        # The reply didn't reach the scale; it sends the same upload again a few minutes later.
+        self.assertEqual(aria.store_readings(conn, aria.parse(body, now=NOW + 300).readings), 0)
+        # A different weight, or the same one the next day, is a new weigh-in.
+        later = upload([(88400, NOW + 600, 12345, 22400), (88450, NOW + 86400, 12345, 22500)], clock=NOW + 86400)
+        self.assertEqual(aria.store_readings(conn, aria.parse(later, now=NOW + 86400).readings), 2)
+
     def test_refused(self):
         good = upload([(88450, NOW, 1, 0)])
         for bad in (good[:-1] + bytes([good[-1] ^ 1]), good[:20], upload([], version=2)):
