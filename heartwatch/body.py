@@ -33,10 +33,9 @@ def store(conn: sqlite3.Connection, source: str, rows: list[Row], person: str = 
     """Readings from one source; one already there is skipped. Returns how many were new."""
     now = int(time.time())
     with conn:
-        before = conn.total_changes
-        conn.executemany("INSERT OR IGNORE INTO body (taken, weight_g, fat_pct, source, person, imported) VALUES (?, ?, ?, ?, ?, ?)",
-                         [(t, g, f, source, person, now) for t, g, f in rows if g])
-        return conn.total_changes - before
+        # rowcount, not total_changes: that also counts db.CHANGES's trigger.
+        return conn.executemany("INSERT OR IGNORE INTO body (taken, weight_g, fat_pct, source, person, imported) VALUES (?, ?, ?, ?, ?, ?)",
+                                [(t, g, f, source, person, now) for t, g, f in rows if g]).rowcount
 
 
 def keep(cfg: Config, source: str, rows: list[Row]) -> None:

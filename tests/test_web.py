@@ -91,6 +91,18 @@ class WebTest(unittest.TestCase):
         self.assertEqual((d["days"][0], d["weight"][0], d["weight_unit"]), ("2026-09-28", 198.4, "lb"))
         self.assertEqual(len(d["weight"]), len(d["days"]))
 
+    def test_series_is_built_again_only_after_a_change(self):
+        first = self.get("/api/series")
+        built = web._series_cache["data"]
+        self.assertEqual(self.get("/api/series"), first)
+        self.assertIs(web._series_cache["data"], built)
+        # A workout the poller imports (another process, straight into the database).
+        conn = db.connect(self.cfg.db_path)
+        store.import_fit(conn, self.cfg, "run2.fit", write(START + timedelta(days=2), [150] * 1800))
+        conn.close()
+        i = first["days"].index("2026-10-03")
+        self.assertGreater(self.get("/api/series")["load"]["run"]["threshold"][i], 0)
+
     def test_preview_does_not_save(self):
         plain = self.get("/api/series")["ltl"][-1]
         faster = self.get("/api/series?aerobic_days=10&threshold_days=10")["ltl"][-1]

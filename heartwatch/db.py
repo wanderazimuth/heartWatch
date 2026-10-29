@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 
@@ -116,6 +117,20 @@ CREATE TABLE IF NOT EXISTS body (
 );
 """
 
+# A count every write to any table bumps, whichever process made it (the poller or the web server),
+# so the web server can tell when its cached series is out of date (web.cached_series_json).
+CHANGES = """
+CREATE TABLE IF NOT EXISTS changes (n INTEGER NOT NULL);
+INSERT INTO changes SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM changes);
+""" + "".join(
+    f"CREATE TRIGGER IF NOT EXISTS {t}_{op.lower()} AFTER {op} ON {t} BEGIN UPDATE changes SET n = n + 1; END;\n"
+    for t in re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", SCHEMA) for op in ("INSERT", "UPDATE", "DELETE"))
+
+
+def version(conn: sqlite3.Connection) -> int:
+    """Changes whenever anything in the database does."""
+    return conn.execute("SELECT n FROM changes").fetchone()[0]
+
 
 def connect(path: str | Path) -> sqlite3.Connection:
     if str(path) != ":memory:":
@@ -125,6 +140,7 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
+    conn.executescript(CHANGES)
     # Car rides at the end of a recording came later (store.scan_drives finds them in old workouts).
     if "drive_at" not in {r["name"] for r in conn.execute("PRAGMA table_info(workouts)")}:
         with conn:

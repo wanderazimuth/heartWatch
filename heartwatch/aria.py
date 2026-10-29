@@ -115,11 +115,10 @@ def save(conn: sqlite3.Connection, cfg: Config, body: bytes, upload: Upload) -> 
 def store_readings(conn: sqlite3.Connection, readings: list[Reading]) -> int:
     now = int(time.time())
     with conn:
-        before = conn.total_changes
-        conn.executemany(
+        # rowcount, not total_changes: that also counts db.CHANGES's trigger.
+        return conn.executemany(
             "INSERT OR IGNORE INTO body (taken, weight_g, fat_pct, source, person, imported) VALUES (?, ?, ?, 'aria', ?, ?)",
-            [(r.taken, r.weight_g, r.fat_pct, str(r.user_id) if r.user_id else "guest", now) for r in readings])
-        return conn.total_changes - before
+            [(r.taken, r.weight_g, r.fat_pct, str(r.user_id) if r.user_id else "guest", now) for r in readings]).rowcount
 
 
 def me(conn: sqlite3.Connection) -> tuple[int, int | None]:

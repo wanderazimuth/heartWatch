@@ -137,6 +137,18 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
 _movement_cache: dict = {}
 
 
+_series_cache: dict = {}
+
+
+def cached_series_json(conn, cfg: Config) -> dict:
+    """series_json(), built again only when the data, the settings or the day have changed.
+    Building it takes the Pi ~4 s, long enough for the phone to give up and show its saved copy."""
+    key = (cfg.db_path, db.version(conn), date.today(), repr(cfg))
+    if cfg.db_path == ":memory:" or _series_cache.get("key") != key:
+        _series_cache.update(key=key, data=series_json(conn, cfg))
+    return _series_cache["data"]
+
+
 def movement_days(conn, cfg: Config, ws: list[store.Workout]) -> dict[date, movement.Movement]:
     """movement.daily(), worked out again only when steps or workouts have changed."""
     key = (cfg.db_path, *conn.execute("SELECT COUNT(*), MAX(received) FROM health_records WHERE type = 'steps'").fetchone(),
@@ -282,7 +294,7 @@ def make_handler(cfg: Config):
                 if url.path == "/api/week":
                     return self._json(week_json(conn, eff))
                 if url.path == "/api/series":
-                    return self._json(series_json(conn, eff))
+                    return self._json(cached_series_json(conn, eff))
                 if url.path == "/api/workouts":
                     return self._json({"workouts": workouts_json(conn, eff)})
                 return self._json(self._settings(conn, eff))
