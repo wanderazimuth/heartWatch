@@ -1,3 +1,4 @@
+import gzip
 import json
 import tempfile
 import threading
@@ -72,6 +73,15 @@ class WebTest(unittest.TestCase):
         self.assertEqual(d["load"]["other"]["threshold"][i], 0)
         self.assertEqual(d["sessions"]["strength"][i + 1], 1)
         self.assertEqual(d["peak_hr"]["bpm"], 150)
+
+    def test_series_is_compressed_for_the_phone(self):
+        req = urllib.request.Request(self.base + "/api/series", headers={"Accept-Encoding": "gzip"})
+        with urllib.request.urlopen(req) as r:
+            self.assertEqual(r.headers["Content-Encoding"], "gzip")
+            self.assertEqual(json.loads(gzip.decompress(r.read())), self.get("/api/series"))
+        # Without asking for it (the Aria scale, curl) it comes plain.
+        with urllib.request.urlopen(self.base + "/api/series") as r:
+            self.assertIsNone(r.headers["Content-Encoding"])
 
     def test_weigh_ins_before_the_first_workout_start_the_charts(self):
         conn = db.connect(self.cfg.db_path)

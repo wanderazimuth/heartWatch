@@ -1,7 +1,8 @@
 // Keeps the page and the last data it loaded, so the installed app opens without a connection.
 // Network first: online it's always the live Pi; the saved copy is only used when the Pi can't be
 // reached. Saved copies carry X-HeartWatch-Saved (when they were fetched) so the page can say so.
-const CACHE = "heartwatch-3";
+// Bump when /api data changes shape: a saved copy from before would break the new page.
+const CACHE = "heartwatch-4";
 const SAVED = ["/", "/api/series", "/api/workouts", "/api/settings", "/api/events", "/api/week"];
 const WAIT_MS = 6000;  // weak signal: give up on the Pi after this and show the saved copy
 

@@ -7,6 +7,7 @@ settings.
 """
 from __future__ import annotations
 
+import gzip
 import hmac
 import json
 import logging
@@ -246,6 +247,12 @@ def make_handler(cfg: Config):
         def _send(self, status: int, body: bytes, content_type: str) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
+            # The series is megabytes of JSON but compresses ~40x; over Tailscale on a phone that's
+            # the difference between loading and the service worker giving up on the Pi.
+            if len(body) > 1024 and "gzip" in self.headers.get("Accept-Encoding", ""):
+                body = gzip.compress(body, compresslevel=6)
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Vary", "Accept-Encoding")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
