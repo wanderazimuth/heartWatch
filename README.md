@@ -82,7 +82,9 @@ Trends lists each climb's rate and heart rate, and charts the heartbeats above r
 per 100 m (or 100 ft) climbed. That number hardly depends on how fast you went, so lower is fitter.
 Enter the pack weight on a climb, or it takes the pack from that day's trip on the Plan tab.
 The summary compares the latest climb with earlier ones carrying the same pack. For a clean
-benchmark, climb the same hill for about 20 minutes with the same pack every 3-4 weeks. After an
+benchmark, climb the same hill for about 20 minutes with the same pack every 3-4 weeks, holding
+about 145 bpm: a fixed heart rate keeps the effort the same, since pushing near threshold costs
+more beats per metre. Getting fitter then shows as a faster rate at that heart rate. After an
 upgrade, `heartwatch rebuild` finds climbs in workouts imported before.
 
 ## Recordings left running in the car
