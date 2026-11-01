@@ -14,7 +14,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterator
 
-from . import fit, gpx, pacetest, ringconn, takeout, thresholdtest
+from . import climb, fit, gpx, pacetest, ringconn, takeout, thresholdtest
 from .config import Config
 from .load import Load, workout_load, zone
 
@@ -78,6 +78,10 @@ def import_fit(conn: sqlite3.Connection, cfg: Config, name: str, data: bytes) ->
                 mod.save(conn, cur.lastrowid, mod.find(io.BytesIO(data)))
             except Exception as e:  # a test that can't be measured mustn't lose the workout
                 log.warning("%s test in %s: %s", kind, name, e)
+    try:
+        climb.save(conn, cur.lastrowid, climb.find(io.BytesIO(data), _drive_at(rec)))
+    except Exception as e:
+        log.warning("climbs in %s: %s", name, e)
     return Imported(name, "added", rec)
 
 
@@ -240,12 +244,18 @@ def rebuild(conn: sqlite3.Connection, cfg: Config, ids: list[int]) -> None:
 
 def keep_drive(conn: sqlite3.Connection, cfg: Config, workout_id: int, keep: bool) -> bool:
     """Count a workout's car ride after all, or leave it out again. False if there's none to change."""
-    row = conn.execute("SELECT start, end FROM workouts WHERE id = ? AND drive_at IS NOT NULL", (workout_id,)).fetchone()
+    row = conn.execute("SELECT start, end, drive_at, archive_path FROM workouts WHERE id = ? AND drive_at IS NOT NULL",
+                       (workout_id,)).fetchone()
     if row is None:
         return False
     with conn:
         conn.execute("UPDATE workouts SET keep_drive = ? WHERE id = ?", (int(keep), workout_id))
     rebuild(conn, cfg, overlapping(conn, row["start"], row["end"]))
+    try:
+        climb.save(conn, workout_id, climb.find(Path(cfg.archive_dir) / row["archive_path"],
+                                                None if keep else row["drive_at"]))
+    except Exception as e:
+        log.warning("climbs in workout %s: %s", workout_id, e)
     return True
 
 

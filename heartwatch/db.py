@@ -86,6 +86,20 @@ CREATE TABLE IF NOT EXISTS threshold_tests (
     not_test INTEGER NOT NULL DEFAULT 0  -- marked by hand on the dashboard
 );
 
+-- Climbs found in any recording with altitude (see climb.py), found again on a rescan.
+CREATE TABLE IF NOT EXISTS climbs (
+    id INTEGER PRIMARY KEY,
+    workout_id INTEGER NOT NULL REFERENCES workouts (id) ON DELETE CASCADE,
+    start INTEGER NOT NULL,          -- unix seconds
+    seconds REAL NOT NULL,
+    gain REAL NOT NULL,              -- metres
+    hr REAL NOT NULL,                -- average
+    peak INTEGER NOT NULL,
+    pack_lb REAL,                    -- entered by hand; none means that day's trip's, if any
+    not_climb INTEGER NOT NULL DEFAULT 0,  -- marked by hand on the dashboard
+    UNIQUE (workout_id, start)
+);
+
 -- Trips you plan for, entered on the Plan tab (see events.py).
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY,

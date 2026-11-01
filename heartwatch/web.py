@@ -21,7 +21,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import aria, body, db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest, week
+from . import aria, body, climb, db, dropbox, events, healthconnect, load, movement, pacetest, profile, settings, store, thresholdtest, week
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ DRIVE_PATH = re.compile(r"/api/workouts/(\d+)/drive")
 PACE_TEST_PATH = re.compile(r"/api/pacetests/(\d+)")
 THRESHOLD_TEST_PATH = re.compile(r"/api/thresholdtests/(\d+)")
 EVENT_PATH = re.compile(r"/api/events/(\d+)")
+CLIMB_PATH = re.compile(r"/api/climbs/(\d+)")
 UPLOAD_TYPES = ("application/zip", "application/x-zip-compressed", "text/csv", "application/octet-stream")
 MAX_UPLOAD = 20 * 1024 * 1024
 # The Health Connect key may come in the URL, so keep it out of the logs.
@@ -125,6 +126,7 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     out["threshold_tests"] = thresholdtest.tests_json(conn, cfg)
     hard = {(t["id"], t["start"]) for t in out["threshold_tests"]}
     out["pace_tests"] = [p for p in pacetest.tests_json(conn) if (p["id"], p["start"]) not in hard]
+    out["climbs"] = climb.climbs_json(conn, cfg)
     out["ring"] = ring_json(conn, today)
     out["phone"] = phone_json(conn, cfg, sleep)
     now = moved.get(today)
@@ -356,6 +358,13 @@ def make_handler(cfg: Config):
                         found = conn.execute(f"UPDATE {table} SET not_test = ? WHERE workout_id = ?",
                                              (int(body["not_test"]), int(m.group(1)))).rowcount
                     return self._json({"ok": True}) if found else self._json({"error": f"unknown {name}"}, 404)
+                m = CLIMB_PATH.fullmatch(path)
+                if m:
+                    try:
+                        found = climb.update(conn, int(m.group(1)), body)
+                    except ValueError as e:
+                        return self._json({"error": str(e)}, 400)
+                    return self._json({"ok": True}) if found else self._json({"error": "unknown climb"}, 404)
                 m = DRIVE_PATH.fullmatch(path)
                 if m:
                     if not isinstance(body.get("keep"), bool):

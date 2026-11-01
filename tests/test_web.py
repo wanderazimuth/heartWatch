@@ -158,6 +158,11 @@ class WebTest(unittest.TestCase):
         self.assertEqual(self.get("/api/series")["settings"]["max_hr"], 150)
         self.assertEqual(self.post("/api/settings", {"auto_max_hr": 1})[0], 400)
 
+    def test_climbs(self):
+        self.assertEqual(self.get("/api/series")["climbs"], [])  # nothing here has altitude
+        self.assertEqual(self.post("/api/climbs/999", {"pack_lb": 15})[0], 404)
+        self.assertEqual(self.post("/api/climbs/1", {"pack_lb": "heavy"})[0], 400)
+
     def upload(self, data, content_type, name="Data Export.zip"):
         req = urllib.request.Request(self.base + "/api/ringconn", data,
                                      {"Content-Type": content_type, "X-Filename": urllib.parse.quote(name)})

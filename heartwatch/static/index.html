@@ -473,6 +473,30 @@
         </table></div>
         <details class="about" data-about="tt"><summary>About this chart</summary><div class="t" id="tt-text"></div></details>
       </section>
+      <section class="panel">
+        <div class="head">
+          <div><h2>Climbs <small>steady ascents in any recording</small></h2><div class="t" id="cl-sum"></div></div>
+        </div>
+        <div id="cl-chart-wrap">
+          <div class="chart">
+            <div class="axis" style="height:200px" id="cl-axis"></div>
+            <div class="plot"><div style="height:200px"><svg viewBox="0 0 1000 300" preserveAspectRatio="none" role="img" aria-label="Heartbeats per climb height on each climb">
+              <line x1="0" y1="20" x2="1000" y2="20" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+              <line x1="0" y1="155" x2="1000" y2="155" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+              <line x1="0" y1="290" x2="1000" y2="290" stroke="var(--grid)" vector-effect="non-scaling-stroke"/>
+              <polyline id="cl-line" fill="none" stroke="var(--aer)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+              <g id="cl-dots"></g>
+            </svg></div></div>
+          </div>
+          <div class="xlabels nr" id="cl-x"></div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>When</th><th class="num">Climb</th><th class="num">Rate</th><th class="num">Heart rate</th><th class="num" id="cl-bph">Beats per 100 ft</th>
+            <th class="num">Pack (lb)</th><th>Not a climb</th></tr></thead>
+          <tbody id="cl-rows"></tbody>
+        </table></div>
+        <details class="about" data-about="cl"><summary>About this chart</summary><div class="t" id="cl-text"></div></details>
+      </section>
     </div>
   </section>
 
@@ -1090,6 +1114,7 @@ function renderTrends() {
   renderZones(lo, hi, span, size, label, sports, axis);
   renderPaceTests();
   renderThresholdTests();
+  renderClimbs();
 }
 
 // Threshold tests: the newest one not marked sets zones 2-5 (thresholdtest.py, profile.py).
@@ -1124,6 +1149,66 @@ function renderThresholdTests() {
       + "Every 6–8 weeks is plenty: it's a race effort, so take an easy day after.");
 }
 
+// Climbs: every one found, whatever the time range (climb.py). The chart is heartbeats above resting
+// per 100 m (or 100 ft) climbed: fewer is fitter, and the pack is shown since it changes the cost.
+function renderClimbs() {
+  const all = S.data.climbs || [], climbs = all.filter((c) => !c.not_climb);
+  const ft = S.units === "mi", unit = ft ? "ft" : "m", k = ft ? FT : 1;
+  const beats = (c) => Math.round(ft ? c.beats_per_100m / FT : c.beats_per_100m);
+  const height = (m) => `${Math.round(m * k).toLocaleString()} ${unit}`;
+  const packText = (c) => c.pack_lb == null ? "no pack entered" : c.pack_lb ? `a ${c.pack_lb} lb pack` : "no pack";
+  $("cl-bph").textContent = `Beats per 100 ${unit}`;
+  $("cl-chart-wrap").hidden = climbs.length < 2;
+  if (climbs.length >= 2) {
+    const vals = climbs.map(beats), t0 = day(climbs[0].start), t1 = day(climbs[climbs.length - 1].start);
+    const pad = Math.max(50, (Math.max(...vals) - Math.min(...vals)) * 0.15);
+    const top = Math.ceil((Math.max(...vals) + pad) / 50) * 50, bottom = Math.max(0, Math.floor((Math.min(...vals) - pad) / 50) * 50);
+    const y = (v) => 290 - (v - bottom) / (top - bottom) * 270;
+    // Climbs on the same day sit side by side rather than on top of each other.
+    const x = (c, i) => ((day(c.start) - t0) / Math.max(1, t1 - t0) * 940 + 20
+      + climbs.slice(0, i).filter((o) => +day(o.start) === +day(c.start)).length * 10).toFixed(1);
+    $("cl-line").setAttribute("points", climbs.map((c, i) => x(c, i) + "," + y(vals[i]).toFixed(1)).join(" "));
+    $("cl-dots").innerHTML = climbs.map((c, i) => `<line x1="${x(c, i)}" x2="${x(c, i)}" y1="${y(vals[i]).toFixed(1)}" y2="${y(vals[i]).toFixed(1)}"
+      stroke="var(--aer)" stroke-width="9" stroke-linecap="round" vector-effect="non-scaling-stroke"><title>${fmtDay(c.start)}: ${vals[i]} beats per 100 ${unit}, ${height(c.rate)}/h, ${packText(c)}</title></line>`).join("");
+    $("cl-axis").innerHTML = `<span style="top:6.7%">${top}</span><span style="top:51.7%">${(top + bottom) / 2}</span><span style="top:96.7%">${bottom}</span>`;
+    $("cl-x").innerHTML = `<span>${fmtDay(climbs[0].start)}</span><span>${fmtDay(climbs[climbs.length - 1].start)}</span>`;
+  }
+  const last = climbs[climbs.length - 1];
+  // The fair comparison is with the climbs before it that carried the same pack.
+  const same = last ? climbs.slice(0, -1).filter((c) => (c.pack_lb || 0) === (last.pack_lb || 0)) : [];
+  const base = same.length ? Math.round(same.reduce((a, c) => a + beats(c), 0) / same.length) : null;
+  $("cl-sum").textContent = !last ? `No climbs yet. Any recording with ${height(60)} or more of steady climbing shows up here.`
+    : `Latest ${fmtDay(last.start)}: ${height(last.rate)}/h at ${last.hr} bpm, ${beats(last)} beats per 100 ${unit} with ${packText(last)}`
+      + (base == null ? "." : `; ${same.length} earlier with the same pack averaged ${base}`
+        + (beats(last) < base * 0.97 ? ", so fitter." : beats(last) > base * 1.03 ? "." : ", within the noise."));
+  $("cl-rows").innerHTML = all.slice().reverse().map((c) => `<tr class="${c.not_climb ? "leftover" : ""}">
+      <td>${new Date(c.start).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+      <td class="num">${Math.round(c.minutes)} min, ${height(c.gain)}</td>
+      <td class="num">${height(c.rate)}/h</td><td class="num">${c.hr}<div class="t" style="font-size:12px">peak ${c.peak}</div></td><td class="num"><b>${beats(c)}</b></td>
+      <td class="num"><input type="number" data-pack="${c.id}" min="0" max="150" step="0.5" inputmode="decimal" style="width:5em"
+        value="${c.pack_lb ?? ""}" aria-label="Pack weight, pounds"${c.pack_from_event ? ` title="From that day's trip on the Plan tab"` : ""}></td>
+      <td><input type="checkbox" data-id="${c.id}" aria-label="Not a climb"${c.not_climb ? " checked" : ""}></td></tr>`).join("")
+    || '<tr><td colspan="7" class="empty">Climb a hill with the strap on and it shows up here.</td></tr>';
+  const save = async (input, body) => {
+    input.disabled = true;
+    try { await api(`/api/climbs/${input.dataset.id || input.dataset.pack}`, body); await refresh(); }
+    catch (e) { toast(e.message); input.disabled = false; }
+  };
+  $("cl-rows").querySelectorAll("input[type=checkbox]").forEach((box) => (box.onchange = () => save(box, { not_climb: box.checked })));
+  $("cl-rows").querySelectorAll("input[type=number]").forEach((box) => (box.onchange = () =>
+    save(box, { pack_lb: box.value === "" ? null : Number(box.value) })));
+  explain("cl-text",
+    `<b>What it shows.</b> Each dot is a climb: a stretch of a recording that kept going up for 8 minutes or more and at least ${height(60)}, through short stops and small dips. `
+      + `It's how many heartbeats above resting it took to climb 100 ${unit}. Lower is fitter. Rate includes the short stops along the way; a stop of 5 minutes or more ends the climb.`,
+    "<b>Why it matters.</b> Lifting yourself a metre costs about the same energy whether you go fast or slow, so beats per height is a fair comparison between a quick climb and a steady one. "
+      + "It falls as your heart and legs get better at climbing: the same hill for fewer beats, or faster for the same heart rate. "
+      + "A pack makes every step up cost more, so compare climbs with the same pack, as the summary does. A climb on the day of a trip on the Plan tab takes that trip's pack unless you enter one.",
+    `<b>The benchmark.</b> Every 3–4 weeks, climb the same hill (at least ${height(90)} of steady trail) for about 20 minutes with the same pack and the strap on. `
+      + "Hikes count too, but trail, heat and waiting for others make them noisier, so trust a trend over a few benchmarks.",
+    "<b>Caveats.</b> Altitude comes from the phone's barometer; weather can nudge it over hours, but hardly over a climb. Stairs and bleachers go up and down too quickly to count, and a treadmill has no altitude at all. "
+      + "Ski lifts and cars are left out by speed; mark anything else that isn't a climb.");
+}
+
 // Pace tests: every one found, whatever the time range, since they're weeks apart.
 // The chart is heartbeats per km (or mile): fewer beats to cover the same ground is fitter.
 const mmss = (sec) => { sec = Math.round(sec); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; };
@@ -1135,6 +1220,7 @@ function renderPaceTests() {
     try { localStorage.setItem("hw-units", id); } catch {}
     renderPaceTests();
     renderThresholdTests();
+    renderClimbs();
   });
   $("pt-bpd").textContent = `Beats per ${unit}`;
   const beats = (p) => Math.round(p.beats_per_km * k);

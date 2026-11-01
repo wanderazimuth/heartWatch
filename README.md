@@ -72,6 +72,19 @@ each can be switched back to a fixed number on the Imports page (or in `config.t
 Like any setting, these apply to the whole history: a new test rescores past workouts too. After
 an upgrade, `heartwatch rebuild` looks for threshold tests in runs imported before.
 
+## Climbs
+
+Any recording with altitude (the Wahoo app takes it from the phone's barometer, so it works in
+canyons where GPS doesn't) is searched for climbs: at least 8 minutes and 60 m of steady climbing,
+through short stops and small dips. A stop of 5 minutes or more, or a 15 m descent, ends one.
+Anything climbing faster than 1500 m/h or moving at car speed is a lift or a ride and is left out.
+Trends lists each climb's rate and heart rate, and charts the heartbeats above resting it took
+per 100 m (or 100 ft) climbed. That number hardly depends on how fast you went, so lower is fitter.
+Enter the pack weight on a climb, or it takes the pack from that day's trip on the Plan tab.
+The summary compares the latest climb with earlier ones carrying the same pack. For a clean
+benchmark, climb the same hill for about 20 minutes with the same pack every 3-4 weeks. After an
+upgrade, `heartwatch rebuild` finds climbs in workouts imported before.
+
 ## Recordings left running in the car
 
 End a hike late, after driving off, and the drive would count as part of it. HeartWatch reads the
