@@ -44,11 +44,13 @@ change types and settings.
 
 Away from home the Pi is reached over Tailscale, which the
 [piServer](https://github.com/wanderazimuth/piServer) repo sets up: HeartWatch is at
-`https://raspberrypi.<tailnet>.ts.net`, for your signed-in devices only. Open that in Chrome on
-the phone and choose **Add to Home screen > Install**: HeartWatch then opens as its own app.
+`https://raspberrypi.<tailnet>.ts.net`, for your signed-in devices only. piServer also has the same
+address answer at home with Tailscale off (a Pi-hole record and Caddy, using Tailscale's
+certificate), so one address works everywhere. Open that in Chrome on the phone and choose
+**Add to Home screen > Install**: HeartWatch then opens as its own app.
 
 The app keeps the page and the last data it loaded. When the Pi can't be reached (no signal, or
-Tailscale off) it opens with that saved copy, and a notice says when it was saved; it goes back to
+away from home with Tailscale off) it opens with that saved copy, and a notice says when it was saved; it goes back to
 live data on its own. Settings, type changes and Update need the Pi. Installing needs HTTPS, so it
 works from the tailnet address, not http://heartwatch.lan.
 
@@ -147,19 +149,24 @@ HeartWatch reads them from there once a day, and on demand with `heartwatch poll
 
 The RingConn app writes a daily resting heart rate and sleep sessions into Android Health Connect.
 [HC Webhook](https://github.com/mcnaveen/health-connect-webhook), an open-source Android app, sends
-them to HeartWatch on a schedule, straight over your home Wi-Fi.
+them to HeartWatch on a schedule.
 
 1. Set `healthconnect_key` in the config to a long random string (for example
    `python3 -c "import secrets; print(secrets.token_urlsafe(18))"`) and restart `heartwatch-web`.
 2. Install HC Webhook on the phone. In Health Connect grant it only **Resting heart rate**,
    **Sleep** and **Steps**; it asks for every kind of health data, and needs none of the rest.
-3. Add a webhook: URL `http://<pi address>:8081/api/healthconnect?key=<key from step 1>`, format
-   JSON. Data types: resting heart rate, sleep and steps, with sleep and steps detail set to
-   **full** (without it sleep stages are left off, so broken nights read long, and steps arrive as
+3. Add a webhook: URL `https://raspberrypi.<tailnet>.ts.net/api/healthconnect?key=<key from step 1>`
+   (the tailnet address from [On the phone](#on-the-phone)), format JSON. That address works at
+   home and, with Tailscale connected, away from home too, so the ring data keeps arriving on
+   trips, and over HTTPS the key in the URL isn't sent in the clear. On a Pi without piServer's
+   setup, `http://<pi address>:8081/...` works on home Wi-Fi only.
+
+   Data types: resting heart rate, sleep and steps, with sleep and steps detail set to **full**
+   (without it sleep stages are left off, so broken nights read long, and steps arrive as
    daily totals, too coarse to find brisk walking in). (An `X-HeartWatch-Key` header works too, but
    HC Webhook leaves custom headers off its manual syncs, so the key belongs in the URL.)
-4. Sync mode: **Scheduled**, at times you're usually home (say 08:00 and 21:00). Exclude the app
-   from battery optimisation so Android doesn't stop it.
+4. Sync mode: **Scheduled**, say 08:00 and 21:00 (with the home address only, pick times you're
+   usually home). Exclude the app from battery optimisation so Android doesn't stop it.
 5. Once, run a manual sync with a time range of the last 60 days, so HeartWatch has a baseline
    from the start. **Sync Now** and the app's Webhook Log show whether the Pi accepted it.
 
