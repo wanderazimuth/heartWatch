@@ -82,6 +82,12 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(len(d["pace_tests"]), 1)
         self.assertEqual(d["settings"]["lthr"], 0)  # zones stay on the reserve
 
+    def test_a_hard_lap_cut_short_is_neither(self):
+        store.import_fit(self.conn, self.cfg, "short.fit", run(test=1200))
+        d = web.series_json(self.conn, self.cfg)
+        self.assertEqual((d["threshold_tests"], d["pace_tests"]), ([], []))
+        self.assertEqual(d["settings"]["lthr"], 0)
+
     def test_the_latest_test_not_marked_wins(self):
         store.import_fit(self.conn, self.cfg, "first.fit", run(hr=158))
         # A week later, a test with no archived file behind it.

@@ -67,7 +67,8 @@ each can be switched back to a fixed number on the Imports page (or in `config.t
 - **Threshold (LTHR)**: from a threshold test. Warm up, press lap, run 30 minutes alone as hard as
   you can hold evenly, press lap. The average of the last 20 minutes is your lactate threshold
   heart rate. HeartWatch finds the test by its laps (a manual lap of 25-40 minutes averaging over
-  80% of your heart-rate reserve; an easier lap is a pace test) and lists it on Trends. The newest
+  80% of your heart-rate reserve; an easier lap is a pace test, and a lap that hard is never one,
+  so a test cut short of 25 minutes is neither) and lists it on Trends. The newest
   one sets zones 2-5 at 85, 90, 95 and 100% of it; zone 1 still starts at half the reserve, and load
   is still scored on the reserve. Mark a lap "Not a test" there to leave it out.
 

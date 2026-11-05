@@ -60,7 +60,9 @@ class StoreTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.cfg = Config(db_path=str(Path(tmp.name) / "hw.db"), archive_dir=tmp.name)
+        # Fixed resting and max: from these runs alone, max would be the test's own 144 and it would read as hard.
+        self.cfg = Config(db_path=str(Path(tmp.name) / "hw.db"), archive_dir=tmp.name,
+                          resting_hr=60, max_hr=180, auto_resting_hr=False, auto_max_hr=False)
         self.conn = db.connect(self.cfg.db_path)
         self.addCleanup(self.conn.close)
 

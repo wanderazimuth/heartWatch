@@ -122,10 +122,10 @@ def series_json(conn, cfg: Config, today: date | None = None) -> dict:
     out["last_workout"] = last.start.isoformat(timespec="minutes") if last else None
     peak = max(ws, key=lambda w: w.peak_hr)
     out["peak_hr"] = {"bpm": peak.peak_hr, "date": peak.start.date().isoformat()}
-    # A threshold test's lap is long and steady enough to pass for a pace test too: it's only one of them.
+    # A pace test is an easy run: a lap as hard as a threshold test isn't one, whatever its length.
+    # That covers threshold tests themselves, and one cut short of 25 minutes.
     out["threshold_tests"] = thresholdtest.tests_json(conn, cfg)
-    hard = {(t["id"], t["start"]) for t in out["threshold_tests"]}
-    out["pace_tests"] = [p for p in pacetest.tests_json(conn) if (p["id"], p["start"]) not in hard]
+    out["pace_tests"] = [p for p in pacetest.tests_json(conn) if not thresholdtest.hard(p["hr"], cfg)]
     out["climbs"] = climb.climbs_json(conn, cfg)
     out["ring"] = ring_json(conn, today)
     out["phone"] = phone_json(conn, cfg, sleep)
