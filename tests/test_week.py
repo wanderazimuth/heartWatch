@@ -40,7 +40,7 @@ class WeekTest(unittest.TestCase):
         self.assertEqual((days[5].session, days[5].minutes), ("easy", 45))  # not beside it, so an easy day
 
     def test_strength_before_an_event_is_light(self):
-        # A big Wednesday: Monday's dumbbells two days before, and on a week with them the day before too.
+        # A big Wednesday: Monday's strength two days before, and on a week with them the day before too.
         days = plan([ev("2026-10-28")])
         self.assertEqual((days[0].session, days[0].minutes), ("light", 40))
         self.assertIn("in 2 days", days[0].why[0])

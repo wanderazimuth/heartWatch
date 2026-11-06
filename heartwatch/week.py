@@ -19,7 +19,7 @@ SESSIONS = {
     "short": "Easy 30 min, or off",
     "uphill": "Uphill: ruck on stairs, bleachers or hills",
     "strength": "Easy run + strength",
-    "weights": "Strength: dumbbells",
+    "weights": "Strength",
     "hard": "Hill repeats or tempo run",
     "long": "Long day: hike, ruck or snowshoe",
 }

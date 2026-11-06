@@ -119,7 +119,7 @@ snowboard, snowshoe) simply takes its place. About 7 hours a week; Sunday is res
 - **Plan tab** (phone-first): this week, Monday to Sunday; upcoming events with a countdown;
   an add form (date, name, kind, size, with "more" for the rest); past events with matched workouts
   and the recap. The Fitness tab gets a one-line "Next: … in N days".
-- **Weekly template** (in settings, so sessions and minutes can be changed): Mon strength (dumbbells) 40 min,
+- **Weekly template** (in settings, so sessions and minutes can be changed): Mon strength 40 min (dumbbells),
   Tue uphill ruck/stairs 60, Wed easy run + strength 60, Thu hill repeats or tempo 45,
   Fri easy 30 or off, Sat long day 2.5–4 h, Sun rest.
 - **Rules**, written in code so each day can say why:
