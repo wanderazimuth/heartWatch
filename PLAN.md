@@ -119,12 +119,13 @@ snowboard, snowshoe) simply takes its place. About 7 hours a week; Sunday is res
 - **Plan tab** (phone-first): this week, Monday to Sunday; upcoming events with a countdown;
   an add form (date, name, kind, size, with "more" for the rest); past events with matched workouts
   and the recap. The Fitness tab gets a one-line "Next: … in N days".
-- **Weekly template** (in settings, so sessions and minutes can be changed): Mon easy run 45 min,
+- **Weekly template** (in settings, so sessions and minutes can be changed): Mon strength (dumbbells) 40 min,
   Tue uphill ruck/stairs 60, Wed easy run + strength 60, Thu hill repeats or tempo 45,
   Fri easy 30 or off, Sat long day 2.5–4 h, Sun rest.
 - **Rules**, written in code so each day can say why:
   - An event takes the long-day slot. If it isn't on Saturday, Saturday becomes easy or rest.
-  - Before an event: two easy days for big (no hard Thursday), one for long, none for easy.
+  - Before an event: two easy days for big (no hard Thursday), one for long, none for easy. A
+    strength-only day becomes light strength (upper body and core, or rest), not a run.
   - After a big event: the next day is recovery, and the following 3 days are recovery too while
     resting heart rate is above its normal range (a future day 2 is planned easy). After a long one,
     the next day is easy.

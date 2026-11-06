@@ -19,15 +19,17 @@ SESSIONS = {
     "short": "Easy 30 min, or off",
     "uphill": "Uphill: ruck on stairs, bleachers or hills",
     "strength": "Easy run + strength",
+    "weights": "Strength: dumbbells",
     "hard": "Hill repeats or tempo run",
     "long": "Long day: hike, ruck or snowshoe",
 }
 # Only the rules make these.
-MADE = {"event": "", "recovery": "Recovery: rest or an easy walk"}
-HARD = ("uphill", "strength", "hard", "long")
+MADE = {"event": "", "recovery": "Recovery: rest or an easy walk",
+        "light": "Light strength: upper body and core, or rest"}
+HARD = ("uphill", "strength", "weights", "hard", "long")
 # Monday first. Minutes are what to aim for; the long day is "this much or more".
 DEFAULT_TEMPLATE = [
-    {"session": "easy", "minutes": 45},
+    {"session": "weights", "minutes": 40},
     {"session": "uphill", "minutes": 60},
     {"session": "strength", "minutes": 60},
     {"session": "hard", "minutes": 45},
@@ -53,6 +55,8 @@ class Day:
 
     def ease(self, minutes: int, why: str, session: str = "easy") -> None:
         if self.session in HARD:
+            if self.session == "weights":  # no heavy legs before an event, but no run in its place either
+                session = "light"
             self.session, self.minutes = session, min(self.minutes or minutes, minutes)
             self.why.append(why)
 

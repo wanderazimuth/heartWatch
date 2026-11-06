@@ -39,6 +39,17 @@ class WeekTest(unittest.TestCase):
         self.assertIn("Easy after Hike", days[3].why[0])
         self.assertEqual((days[5].session, days[5].minutes), ("easy", 45))  # not beside it, so an easy day
 
+    def test_strength_before_an_event_is_light(self):
+        # A big Wednesday: Monday's dumbbells two days before, and on a week with them the day before too.
+        days = plan([ev("2026-10-28")])
+        self.assertEqual((days[0].session, days[0].minutes), ("light", 40))
+        self.assertIn("in 2 days", days[0].why[0])
+        tmpl = [dict(t) for t in TMPL]
+        tmpl[1] = {"session": "weights", "minutes": 40}
+        days = {d.day.weekday(): d for d in week.week(MON, [ev("2026-10-28")], tmpl, TUE, {})}
+        self.assertEqual((days[1].session, days[1].minutes), ("light", 30))
+        self.assertEqual(week.label(days[1]), "Light strength: upper body and core, or rest")
+
     def test_easy_event_changes_only_the_long_day(self):
         days = plan([ev("2026-10-31", size="easy", kind="snowboard", title="Snowboard")])
         self.assertEqual(days[3].session, "hard")
@@ -61,7 +72,7 @@ class WeekTest(unittest.TestCase):
         # A big Saturday last week; resting heart rate is still up on Tuesday.
         events = [ev("2026-10-24")]
         days = plan(events, high={TUE: (60.0, 50.0, 52.0)})
-        self.assertEqual(days[0].session, "easy")  # Monday was fine
+        self.assertEqual(days[0].session, "weights")  # Monday was fine
         self.assertEqual(days[1].session, "recovery")
         self.assertIn("resting heart rate 60, above your normal 50–52", days[1].why[0])
         self.assertEqual(plan(events)[1].session, "uphill")
