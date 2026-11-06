@@ -651,7 +651,7 @@ function zoneEdges(rest, max, lthr) {
     : [0.6, 0.7, 0.8, 0.9].map((f) => Math.round(rest + f * (max - rest)));
   return [z1, ...rest4, max];
 }
-const S = { tab: "fitness", fRange: "3M", tRange: "6M", sport: "all", showLoads: false, data: null, workouts: null,
+const S = { tab: "fitness", fRange: "3M", tRange: "1M", sport: "all", showLoads: false, data: null, workouts: null,
             settings: null, draft: null, showAll: false, rows: 100, bars: "load", events: null, form: null, pastRows: 10,
             week: null, weekIdx: new Date().getDay() === 0 ? 1 : 0, tmpl: null };
 try { const b = localStorage.getItem("hw-bars") || (localStorage.getItem("hw-zones") === "5" ? "5" : ""); if (["load", "3", "5"].includes(b)) S.bars = b; } catch {}
