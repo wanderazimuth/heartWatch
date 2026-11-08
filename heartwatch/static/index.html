@@ -577,7 +577,8 @@
       </section>
       <section class="panel">
         <div class="head"><h2>RingConn exports <small>HRV, by hand</small></h2>
-          <input type="file" id="r-file" accept=".zip,.csv" hidden>
+          <!-- MIME types too: Android's picker filters by the type it recorded, and a download can be a generic one. -->
+          <input type="file" id="r-file" accept=".zip,.csv,application/zip,application/x-zip-compressed,application/octet-stream,text/csv,text/comma-separated-values" hidden>
           <button type="button" class="primary" id="r-pick">Import an export…</button>
         </div>
         <div class="t" id="i-ring"></div>
