@@ -47,8 +47,10 @@ class Config:
     lthr_zones: bool = True
     lthr: int = 0
 
-    # Averaging windows, in days. Fitness score is long-term load averaged again.
+    # Averaging windows, in days. Fitness score and training capacity are smoothed forward
+    # and backward (load.zero_lag) over fitness_days and capacity_days.
     fitness_days: float = 21
+    capacity_days: float = 4
     aerobic_days: float = 60
     threshold_days: float = 35
     anaerobic_days: float = 18

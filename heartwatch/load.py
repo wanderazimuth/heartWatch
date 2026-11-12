@@ -111,13 +111,28 @@ def state_of(capacity: float, change: float) -> str:
     return "Maintaining"
 
 
+def zero_lag(xs: list[float], days: float) -> list[float]:
+    """An exponential average run forward and again backward, then the two averaged: smooth,
+    but with no lag either way. The last few days have no later days to smooth with, so
+    they still move a little as new days come in."""
+    fwd, back = [], [0.0] * len(xs)
+    for x in xs:
+        fwd.append(x if not fwd else fwd[-1] + (x - fwd[-1]) / days)
+    for i in range(len(xs) - 1, -1, -1):
+        back[i] = xs[i] if i == len(xs) - 1 else back[i + 1] + (xs[i] - back[i + 1]) / days
+    return [(f + b) / 2 for f, b in zip(fwd, back)]
+
+
 def series(daily: dict[date, Load], cfg: Config, start: date, end: date,
            readiness_adjust: dict[date, float] | None = None) -> list[Day]:
-    """One Day per date from start to end, with every average starting from zero at start."""
+    """One Day per date from start to end, with every average starting from zero at start.
+
+    Fitness score is long-term load and training capacity is long-term minus short-term load
+    (plus the readiness adjustment), each smoothed with zero_lag over fitness_days and
+    capacity_days."""
     readiness_adjust = readiness_adjust or {}
     la = lt = ln = stl = 0.0
-    fit: float | None = None
-    days: list[Day] = []
+    rows = []
     d = start
     while d <= end:
         load = daily.get(d, Load())
@@ -126,13 +141,17 @@ def series(daily: dict[date, Load], cfg: Config, start: date, end: date,
         ln += (load.anaerobic - ln) / cfg.anaerobic_days
         stl += (load.aerobic + cfg.threshold_fatigue * load.threshold
                 + cfg.anaerobic_fatigue * load.anaerobic - stl) / cfg.fatigue_days
-        ltl = la + lt + ln
-        fit = ltl if fit is None else fit + (ltl - fit) / cfg.fitness_days
-        capacity = ltl - stl + readiness_adjust.get(d, 0.0)
-        prev = days[-28].ltl if len(days) >= 28 else 0.0
-        change = (ltl - prev) / prev if prev > 0 else 0.0
-        days.append(Day(d, load, Load(la, lt, ln), stl, fit, capacity, change, state_of(capacity, change)))
+        rows.append((d, load, Load(la, lt, ln), stl))
         d += timedelta(days=1)
+    ltl = [lt.total for _, _, lt, _ in rows]
+    fitness = zero_lag(ltl, cfg.fitness_days)
+    capacity = zero_lag([l - stl + readiness_adjust.get(d, 0.0) for l, (d, _, _, stl) in zip(ltl, rows)],
+                        cfg.capacity_days)
+    days: list[Day] = []
+    for i, (d, load, long_term, stl) in enumerate(rows):
+        prev = ltl[i - 28] if i >= 28 else 0.0
+        change = (ltl[i] - prev) / prev if prev > 0 else 0.0
+        days.append(Day(d, load, long_term, stl, fitness[i], capacity[i], change, state_of(capacity[i], change)))
     return days
 
 

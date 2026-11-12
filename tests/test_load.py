@@ -72,13 +72,21 @@ class SeriesTest(unittest.TestCase):
         self.assertAlmostEqual(last.capacity, 0, delta=0.1)
         self.assertEqual(last.state, "Maintaining")
 
-    def test_fitness_lags_long_term_load(self):
-        daily = {self.start + timedelta(days=i): Load(aerobic=50) for i in range(60)}
+    def test_fitness_is_smoothed_long_term_load(self):
+        daily = {self.start + timedelta(days=i): Load(aerobic=50) for i in range(0, 60, 3)}
         days = self.run_series(daily, 60)
-        self.assertTrue(all(d.fitness <= d.ltl for d in days))
-        # And it is smoother: its day-to-day steps are smaller.
+        # Smoother: its day-to-day steps are smaller.
         step = lambda xs: max(abs(b - a) for a, b in zip(xs, xs[1:]))
         self.assertLess(step([d.fitness for d in days]), step([d.ltl for d in days]))
+        self.assertLess(step([d.capacity for d in days]), step([d.ltl - d.short_term for d in days]))
+
+    def test_zero_lag_does_not_lag(self):
+        # A single spike stays centred on its day, where a forward-only average would peak after it.
+        xs = [0.0] * 10 + [10.0] + [0.0] * 10
+        smooth = load.zero_lag(xs, 4)
+        self.assertEqual(smooth.index(max(smooth)), 10)
+        self.assertAlmostEqual(smooth[0], smooth[-1])
+        self.assertEqual(load.zero_lag([5.0, 5.0, 5.0], 4), [5.0, 5.0, 5.0])
 
     def test_hard_block_is_fatiguing(self):
         daily = {self.start + timedelta(days=i): Load(aerobic=40) for i in range(200)}

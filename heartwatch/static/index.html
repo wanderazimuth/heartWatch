@@ -630,7 +630,8 @@ const FT = 3.28084;
 const KNOBS = [
   ["resting_hr", "Resting heart rate", 1, "bpm", "Your heart rate at rest."],
   ["max_hr", "Max heart rate", 1, "bpm", "The highest your heart rate goes."],
-  ["fitness_days", "Fitness score smoothing", 3, "d", "How slowly the fitness score follows long-term load."],
+  ["fitness_days", "Fitness score smoothing", 3, "d", "Long-term load averaged forward and backward over this many days."],
+  ["capacity_days", "Training capacity smoothing", 1, "d", "Training capacity averaged forward and backward over this many days."],
   ["aerobic_days", "Long-term load: aerobic", 5, "d", "Zones 1–2."],
   ["threshold_days", "Long-term load: threshold", 5, "d", "Zones 3–4."],
   ["anaerobic_days", "Long-term load: anaerobic", 2, "d", "Zone 5."],
@@ -831,8 +832,8 @@ function renderFitness() {
   xLabels($("f-x"), lo, hi, span);
   const s = d.settings, dv = d.derived;
   explain("f-text",
-    `<b>What it shows.</b> The thick line is your fitness score (left axis): long-term training load smoothed again over ${s.fitness_days} days, so it moves slowly and only climbs with weeks of steady training. `
-      + "The coloured line is training capacity (right axis): long-term load minus short-term load, plus the resting-heart-rate adjustment. "
+    `<b>What it shows.</b> The thick line is your fitness score (left axis): long-term training load smoothed over ${s.fitness_days} days, so it moves slowly and only climbs with weeks of steady training. `
+      + `The coloured line is training capacity (right axis): long-term load minus short-term load, plus the resting-heart-rate adjustment, smoothed over ${s.capacity_days} days. `
       + "Above the dashed zero line it turns green: you're fresher than your training base. Below it, orange: you're carrying more fatigue than your base is used to. "
       + "The dotted red line, at −20, is where overtraining risk starts. The strip under the chart colours each day by its fitness state.",
     "<b>How to read it.</b> Training harder than usual raises fitness and pulls capacity down at the same time; that dip is normal, it's how training works. "
@@ -846,7 +847,8 @@ function renderFitness() {
   $("f-note").textContent = `Load is scored from heart rate alone (TRIMP, using heart rate reserve: resting ${s.resting_hr}${found("resting_hr") ? " from the ring" : ""}, `
     + `max ${s.max_hr}${found("max_hr") ? " from your workouts" : ""}; zones ${s.lthr ? `2–5 from your threshold heart rate, ${s.lthr}` : "as percentages of the reserve"}, zone 2 = ${d.zones[1][0]}–${d.zones[1][1]} bpm). `
     + `Short-term load averages over ${s.fatigue_days} days; long-term load over ${s.aerobic_days} days for aerobic work, ${s.threshold_days} for threshold and ${s.anaerobic_days} for anaerobic. `
-    + `Fitness score is long-term load smoothed again over ${s.fitness_days} days. Training capacity = long-term load − short-term load + resting-heart-rate adjustment (up to ±${s.readiness_adjust_max}).`;
+    + `Fitness score is long-term load smoothed over ${s.fitness_days} days. Training capacity = long-term load − short-term load + resting-heart-rate adjustment (up to ±${s.readiness_adjust_max}), smoothed over ${s.capacity_days} days. `
+    + "Both are averaged forward and backward in time, so they don't lag behind your training, but the last few days still shift a little as new days come in.";
 }
 
 // Averages over groups of days like points(), skipping days without a reading.

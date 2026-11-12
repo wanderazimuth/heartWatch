@@ -16,6 +16,7 @@ TUNABLE = {
     "resting_hr": (30, 100),
     "max_hr": (120, 230),
     "fitness_days": (3, 120),
+    "capacity_days": (1, 28),
     "aerobic_days": (7, 180),
     "threshold_days": (7, 180),
     "anaerobic_days": (3, 120),

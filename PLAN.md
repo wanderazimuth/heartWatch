@@ -44,9 +44,9 @@ computed when a page loads. Two years of days is trivial work, so there is no ca
 | Load | Banister TRIMP per second, split into aerobic (zone 2 and below), threshold (zones 3–4), anaerobic (zone 5) | ~60 per hour in zone 2 |
 | Long-term load | EWMA per dimension | 60 / 35 / 18 days |
 | Short-term load | EWMA of aerobic + 1.4 × threshold + 2 × anaerobic | 7 days |
-| Fitness score | EWMA of total long-term load | 21 days |
+| Fitness score | total long-term load, EWMA run forward and backward and averaged (no lag) | 21 days |
 | HRV adjustment | 7-day HRV z-score vs 30-day baseline, scaled, capped | ±12 (0 until ring data exists) |
-| Training capacity | long-term − short-term + HRV adjustment | |
+| Training capacity | long-term − short-term + HRV adjustment, smoothed forward and backward the same way | 4 days |
 | Fitness state | rules from the mockup (Overtraining risk below −20, etc.) | |
 
 Every number in the right-hand column comes from config.

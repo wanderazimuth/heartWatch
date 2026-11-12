@@ -28,7 +28,8 @@ lthr_zones = true
 lthr = 0
 
 # Averaging windows, in days. Longer = smoother and slower to react.
-fitness_days = 21      # fitness score: long-term load averaged again
+fitness_days = 21      # fitness score: long-term load, averaged forward and backward
+capacity_days = 4      # training capacity, averaged forward and backward
 aerobic_days = 60      # long-term load, zones 1-2
 threshold_days = 35    # long-term load, zones 3-4
 anaerobic_days = 18    # long-term load, zone 5
