@@ -1,11 +1,11 @@
 [Unit]
-Description=Daily HeartWatch import from Dropbox
+Description=Hourly HeartWatch import from Dropbox
 
 [Timer]
-# Late morning, after a morning workout has synced. Persistent: if the Pi was
-# off at that time, poll once it's back.
-OnCalendar=*-*-* 11:00
-RandomizedDelaySec=10min
+# Every hour, so a workout shows up soon after it syncs. Each poll fetches only
+# new files. Persistent: if the server was off, poll once it's back.
+OnCalendar=hourly
+RandomizedDelaySec=5min
 Persistent=true
 
 [Install]

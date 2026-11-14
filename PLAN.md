@@ -83,7 +83,7 @@ de-duplicated per second; strap-settling glitches are filtered; max HR is best t
   starts a new one), and label each from the Google Fit activity that overlaps it.
 - De-duplication: Wahoo files and Takeout can cover the same workouts. A .FIT file wins over a Takeout
   session that overlaps it in time.
-- Dropbox poller using Dropbox's change cursor, so each poll fetches only new files. Runs once a day,
+- Dropbox poller using Dropbox's change cursor, so each poll fetches only new files. Runs every hour,
   and on demand from the dashboard's Update button (phase 3) or `heartwatch poll`.
 - `heartwatch gaps` lists weeks with no workouts.
 
@@ -93,7 +93,7 @@ NetWatch). An Imports page: list of imported workouts, type fix, settings, and t
 An Update button that runs a Dropbox poll and redraws the charts.
 
 **4. Deploy (done)**
-Install script, dashboard service, daily import timer (11:00), nightly NAS copy of the archive and a
+Install script, dashboard service, hourly import timer, nightly NAS copy of the archive and a
 database snapshot (rsync over ssh, never deleting). Deployed with `deploy/push.sh` from a workstation.
 Archive paths are stored relative to `archive_dir`, so the archive and database
 can move between machines as they are.

@@ -130,7 +130,7 @@ are scored with today's resting and max heart rate.
 ## Dropbox
 
 The Wahoo app can share every workout's .fit file to Dropbox (Settings > Authorized apps > Dropbox).
-HeartWatch reads them from there once a day, and on demand with `heartwatch poll`.
+HeartWatch reads them from there every hour, and on demand with `heartwatch poll`.
 
 1. At https://www.dropbox.com/developers/apps choose **Create app**, **Scoped access**,
    **Full Dropbox** (the Wahoo app writes into its own app folder, which a folder-only app can't
@@ -240,7 +240,7 @@ Dropbox token (readable by that user only), and installs:
 | unit | what |
 |---|---|
 | `heartwatch-web` | the dashboard on port 8081 |
-| `heartwatch-poll.timer` | the Dropbox import, daily at 11:00 (skips itself until Dropbox is connected) |
+| `heartwatch-poll.timer` | the Dropbox import, every hour (skips itself until Dropbox is connected) |
 | `heartwatch-backup.timer` | the NAS copy at 02:30, enabled once `backup_share` or `backup_target` is set |
 
 Commands on the Pi run as the service user:

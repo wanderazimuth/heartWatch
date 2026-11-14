@@ -1341,7 +1341,7 @@ function renderImports() {
   const polled = d && d.last_poll ? new Date(d.last_poll * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
   $("i-dropbox").innerHTML = !d ? "" : !d.dropbox
     ? "Not connected yet. Follow the Dropbox steps in the README, then the Update button fetches new workouts."
-    : `Checked once a day, and whenever you press Update. Last checked: ${polled || "never"}.`;
+    : `Checked every hour, and whenever you press Update. Last checked: ${polled || "never"}.`;
   const ph = d && d.phone;
   $("i-phone").textContent = !ph ? "" : !ph.configured
     ? "Not set up: set healthconnect_key in config.toml, then point the HC Webhook app on your phone at /api/healthconnect (see the README)."
